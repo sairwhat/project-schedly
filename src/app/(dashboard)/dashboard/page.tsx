@@ -137,7 +137,7 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="mx-auto max-w-4xl space-y-4 pt-6">
+    <div className="mx-auto max-w-4xl space-y-4 py-10">
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
           Good {new Date().getHours() < 12 ? "morning" : new Date().getHours() < 18 ? "afternoon" : "evening"}, {firstName}
@@ -148,7 +148,7 @@ export default function DashboardPage() {
       </div>
 
       {/* At a Glance */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-2 items-start gap-3">
         {/* Next Class */}
         <Card className="border-border/50 [--card-spacing:--spacing(5)]">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
