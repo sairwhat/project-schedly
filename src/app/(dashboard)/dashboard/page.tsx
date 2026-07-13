@@ -148,7 +148,7 @@ export default function DashboardPage() {
       </div>
 
       {/* At a Glance */}
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2">
         {/* Next Class */}
         <Card className="border-border/50">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -221,7 +221,7 @@ export default function DashboardPage() {
         </Card>
 
         {/* Quick Stats */}
-        <Card className="border-border/50">
+        <Card className="border-border/50 sm:col-span-2">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
               Quick Stats

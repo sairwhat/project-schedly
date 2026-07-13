@@ -80,11 +80,10 @@ export function SchedulePreview({ classes, filename = "schedule.png" }: Props) {
         <span className="ml-2 text-xs font-mono text-muted-foreground">{filename}</span>
       </div>
 
-      <div className="overflow-x-auto pb-1">
-        <div
-          className="grid min-w-[560px] gap-2 text-xs"
-          style={{ gridTemplateColumns: `repeat(${activeDays.length}, minmax(0, 1fr))` }}
-        >
+      <div
+        className="grid gap-2 text-xs"
+        style={{ gridTemplateColumns: `repeat(${activeDays.length}, minmax(0, 1fr))` }}
+      >
           {activeDays.map((day) => (
             <div
               key={day}
@@ -119,10 +118,8 @@ export function SchedulePreview({ classes, filename = "schedule.png" }: Props) {
                   )}
                 </div>
               );
-            })
-          )}
-        </div>
+          })
+        )}
       </div>
-    </div>
   );
 }
