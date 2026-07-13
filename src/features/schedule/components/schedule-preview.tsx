@@ -121,5 +121,6 @@ export function SchedulePreview({ classes, filename = "schedule.png" }: Props) {
           })
         )}
       </div>
+    </div>
   );
 }
