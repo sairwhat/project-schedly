@@ -1,0 +1,209 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum DayOfWeek {
+  monday
+  tuesday
+  wednesday
+  thursday
+  friday
+  saturday
+  sunday
+}
+
+enum UploadStatus {
+  pending
+  uploading
+  processing
+  completed
+  failed
+}
+
+enum NotificationType {
+  class_reminder
+  schedule_update
+  system
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email         String   @unique
+  name          String
+  username      String   @unique
+  firstName     String   @map("first_name")
+  lastName      String   @map("last_name")
+  birthdate     DateTime? @map("birthdate")
+  sex           String?   @map("sex")
+  homeAddress   String?  @map("home_address")
+  emailVerified Boolean  @default(false) @map("email_verified")
+  failedAttempts Int      @default(0) @map("failed_attempts")
+  lockedUntil   DateTime? @map("locked_until")
+  avatarUrl String?  @map("avatar_url")
+  school    String?
+  course    String?
+  year      Int?
+  timezone  String   @default("UTC")
+  theme     String   @default("system")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  sessions      Session[]
+  accounts      Account[]
+  schedules     Schedule[]
+  reminders     Reminder[]
+  uploads       Upload[]
+  notifications Notification[]
+  feedbacks     Feedback[]
+
+  @@map("users")
+}
+
+model Session {
+  id        String   @id
+  expiresAt DateTime @map("expires_at")
+  token     String   @unique
+  userId    String   @map("user_id")
+  ipAddress String?  @map("ip_address")
+  userAgent String?  @map("user_agent")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+  @@index([userId])
+  @@map("sessions")
+}
+
+model Account {
+  id         String   @id @default(uuid())
+  userId     String   @map("user_id")
+  providerId String   @map("provider_id")
+  accountId  String   @map("account_id")
+  password   String?
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([providerId, accountId])
+  @@map("accounts")
+}
+
+model Schedule {
+  id           String   @id @default(uuid())
+  userId       String   @map("user_id")
+  title        String
+  semester     String?
+  academicYear String?  @map("academic_year")
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  user    User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  classes Class[]
+  uploads Upload[]
+
+  @@index([userId])
+  @@map("schedules")
+}
+
+model Class {
+  id         String      @id @default(uuid())
+  scheduleId String      @map("schedule_id")
+  subject    String
+  code       String?
+  instructor String?
+  room       String?
+  section    String?
+  color      String      @default("#3b82f6")
+  startTime  DateTime    @map("start_time")
+  endTime    DateTime    @map("end_time")
+  days       DayOfWeek[]
+  createdAt  DateTime    @default(now()) @map("created_at")
+  updatedAt  DateTime    @updatedAt @map("updated_at")
+
+  schedule  Schedule   @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  reminders Reminder[]
+
+  @@index([scheduleId])
+  @@map("classes")
+}
+
+model Reminder {
+  id            String   @id @default(uuid())
+  classId       String   @map("class_id")
+  userId        String   @map("user_id")
+  minutesBefore Int      @default(15) @map("minutes_before")
+  isActive      Boolean  @default(true) @map("is_active")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  class Class @relation(fields: [classId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([classId])
+  @@index([userId])
+  @@map("reminders")
+}
+
+model Upload {
+  id           String       @id @default(uuid())
+  userId       String       @map("user_id")
+  scheduleId   String?      @map("schedule_id")
+  fileUrl      String       @map("file_url")
+  fileName     String       @map("file_name")
+  fileSize     Int          @map("file_size")
+  mimeType     String       @map("mime_type")
+  status       UploadStatus @default(pending)
+  aiResult     Json?        @map("ai_result")
+  errorMessage String?      @map("error_message")
+  createdAt    DateTime     @default(now()) @map("created_at")
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  schedule Schedule? @relation(fields: [scheduleId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@map("uploads")
+}
+
+model Notification {
+  id          String           @id @default(uuid())
+  userId      String           @map("user_id")
+  type        NotificationType
+  title       String
+  body        String
+  read        Boolean          @default(false)
+  scheduledAt DateTime?        @map("scheduled_at")
+  createdAt   DateTime         @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, read])
+  @@map("notifications")
+}
+
+enum FeedbackType {
+  bug
+  feedback
+  question
+}
+
+model Feedback {
+  id        String       @id @default(uuid())
+  userId    String       @map("user_id")
+  type      FeedbackType @default(feedback)
+  subject   String?
+  message   String
+  page      String?      @map("page")
+  status    String       @default("open") @map("status")
+  createdAt DateTime     @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("feedback")
+}
