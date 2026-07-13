@@ -150,7 +150,7 @@ export default function DashboardPage() {
       {/* At a Glance */}
       <div className="grid grid-cols-2 gap-4">
         {/* Next Class */}
-        <Card className="border-border/50 h-full [--card-spacing:--spacing(5)]">
+        <Card className="border-border/50 [--card-spacing:--spacing(5)]">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
               Next Class
@@ -186,7 +186,7 @@ export default function DashboardPage() {
         </Card>
 
         {/* Today's To-Dos */}
-        <Card className="border-border/50 h-full [--card-spacing:--spacing(5)]">
+        <Card className="border-border/50 [--card-spacing:--spacing(5)]">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
               To-Dos Today
