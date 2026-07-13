@@ -58,7 +58,7 @@ function NavItemLink({ item }: { item: NavItem }) {
       )}
     >
       {isActive && (
-        <div className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-sidebar-primary" />
+        <div className="absolute right-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-l-full bg-sidebar-primary" />
       )}
       <Icon className={cn("h-[18px] w-[18px] shrink-0", isActive && "text-sidebar-primary")} />
       <span className="flex-1 truncate">{item.label}</span>
@@ -156,7 +156,7 @@ export function Sidebar({ onClose }: { onClose?: () => void }) {
             </div>
             <ChevronDown className="h-4 w-4 shrink-0 text-sidebar-foreground/40" />
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" side="right" className="w-56 p-2">
+          <DropdownMenuContent align="end" side="left" className="w-56 p-2">
             <DropdownMenuGroup>
               <DropdownMenuLabel className="font-normal">
                 <div className="flex items-center gap-3 rounded-xl bg-sidebar-primary/5 px-3 py-2.5">
