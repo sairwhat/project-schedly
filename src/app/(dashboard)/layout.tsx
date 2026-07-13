@@ -13,6 +13,11 @@ export default function DashboardLayout({
   const [showButton, setShowButton] = useState(false);
 
   useEffect(() => {
+    const mq = window.matchMedia("(min-width: 768px)");
+    setOpen(mq.matches);
+  }, []);
+
+  useEffect(() => {
     if (open) {
       setShowButton(false);
       return;
@@ -58,7 +63,7 @@ export default function DashboardLayout({
           ].join(" ")}
         >
           <div className="grid min-h-full w-full place-items-center">
-            <div className="mx-auto w-full max-w-3xl">{children}</div>
+            <div className="mx-auto w-[70%] max-w-3xl md:w-full">{children}</div>
           </div>
         </main>
       </div>
