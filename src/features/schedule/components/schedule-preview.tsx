@@ -111,7 +111,10 @@ export function SchedulePreview({ classes, filename = "schedule.png" }: Props) {
                           <div className="text-[11px] font-semibold leading-tight">
                             {c.code || c.subject}
                           </div>
-                          <div className="opacity-80">{minutesToTime(timeToMinutes(c.startTime))}</div>
+                          <div className="opacity-80">
+                            {minutesToTime(timeToMinutes(c.startTime))}–
+                            {minutesToTime(timeToMinutes(c.endTime))}
+                          </div>
                         </div>
                       ))}
                     </div>
