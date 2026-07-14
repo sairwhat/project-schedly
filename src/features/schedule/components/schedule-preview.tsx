@@ -49,6 +49,15 @@ function minutesToTime(m: number): string {
   return `${String(h).padStart(2, "0")}:${String(m2).padStart(2, "0")}`;
 }
 
+function minutesTo12h(m: number): string {
+  const totalH = Math.floor(m / 60);
+  let h = totalH % 12;
+  if (h === 0) h = 12;
+  const m2 = m % 60;
+  const ampm = totalH < 12 ? "AM" : "PM";
+  return `${h}:${String(m2).padStart(2, "0")} ${ampm}`;
+}
+
 export function SchedulePreview({ classes, filename = "schedule.png" }: Props) {
   const activeDays = ALL_DAYS.filter((day) => classes.some((c) => c.days.includes(day)));
 
@@ -112,8 +121,8 @@ export function SchedulePreview({ classes, filename = "schedule.png" }: Props) {
                             {c.code || c.subject}
                           </div>
                           <div className="opacity-80">
-                            {minutesToTime(timeToMinutes(c.startTime))}–
-                            {minutesToTime(timeToMinutes(c.endTime))}
+                            {minutesTo12h(timeToMinutes(c.startTime))}–
+                            {minutesTo12h(timeToMinutes(c.endTime))}
                           </div>
                         </div>
                       ))}
