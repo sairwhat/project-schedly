@@ -16,6 +16,7 @@ type ClassData = {
 type Props = {
   classes: ClassData[];
   filename?: string;
+  scale?: number;
 };
 
 const ALL_DAYS = [
@@ -58,7 +59,7 @@ function minutesTo12h(m: number): string {
   return `${h}:${String(m2).padStart(2, "0")} ${ampm}`;
 }
 
-export function SchedulePreview({ classes, filename = "schedule.png" }: Props) {
+export function SchedulePreview({ classes, filename = "schedule.png", scale }: Props) {
   const activeDays = ALL_DAYS.filter((day) => classes.some((c) => c.days.includes(day)));
 
   if (activeDays.length === 0) {
@@ -81,7 +82,10 @@ export function SchedulePreview({ classes, filename = "schedule.png" }: Props) {
     );
 
   return (
-    <div className="mx-auto w-full max-w-2xl rounded-xl border border-border/60 bg-card p-4 shadow-2xl shadow-primary/5 sm:p-6">
+    <div
+      className="mx-auto w-full max-w-2xl rounded-xl border border-border/60 bg-card p-4 shadow-2xl shadow-primary/5 sm:p-6"
+      style={scale ? { zoom: scale } : undefined}
+    >
       <div className="mb-4 flex items-center gap-2">
         <div className="h-3 w-3 rounded-full bg-destructive/60" />
         <div className="h-3 w-3 rounded-full bg-yellow-400/60" />
