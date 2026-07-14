@@ -55,12 +55,7 @@ export default function NotificationsPage() {
     getUserSchedules()
       .then((scheds) =>
         setNotifications(
-          (scheds as {
-            id: string;
-            title: string;
-            createdAt: string | Date;
-            classes: { length: number }[];
-          }[]).map((s) => ({
+          scheds.map((s) => ({
             id: s.id,
             type: "schedule_update" as const,
             title: "Schedule Uploaded",
