@@ -296,7 +296,7 @@ export default function SchedulePage() {
               <SchedulePreview
                 classes={selectedSchedule.classes}
                 filename={`${selectedSchedule.title}.png`}
-                scale={0.4}
+                scale={0.8}
               />
             </div>
           )}
