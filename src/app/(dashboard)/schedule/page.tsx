@@ -230,7 +230,7 @@ export default function SchedulePage() {
                     <p className="mt-1 max-w-xs text-sm text-muted-foreground leading-relaxed">
                       Schedly will use AI to extract your classes automatically.
                     </p>
-                    <div className="mt-5 flex flex-col sm:flex-row gap-3 w-full max-w-xs">
+                     <div className="mt-5 flex flex-row gap-3 w-full max-w-xs">
                       <Button className="flex-1 h-11 px-6 font-medium" onClick={() => document.getElementById("upload-camera")?.click()}>
                         <Camera className="mr-2 h-4 w-4" /> Take Photo
                       </Button>
