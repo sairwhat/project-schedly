@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { getUserSchedules } from "@/app/(dashboard)/schedule/actions";
 import { Button } from "@/components/ui/button";
 import {
   Bell,
@@ -10,6 +11,7 @@ import {
   Calendar,
   Info,
   Clock,
+  Loader2,
 } from "lucide-react";
 
 type Notification = {
@@ -20,41 +22,6 @@ type Notification = {
   read: boolean;
   createdAt: string;
 };
-
-const DEMO_NOTIFICATIONS: Notification[] = [
-  {
-    id: "1",
-    type: "class_reminder",
-    title: "Class Starting Soon",
-    body: "Math 101 starts in 15 minutes — Room 301",
-    read: false,
-    createdAt: new Date(Date.now() - 300000).toISOString(),
-  },
-  {
-    id: "2",
-    type: "schedule_update",
-    title: "Schedule Updated",
-    body: "Your Science 201 class has been moved to Room 502",
-    read: false,
-    createdAt: new Date(Date.now() - 3600000).toISOString(),
-  },
-  {
-    id: "3",
-    type: "system",
-    title: "Welcome to Schedly!",
-    body: "Upload your first schedule to get started with AI-powered timetable management.",
-    read: true,
-    createdAt: new Date(Date.now() - 86400000).toISOString(),
-  },
-  {
-    id: "4",
-    type: "class_reminder",
-    title: "Assignment Reminder",
-    body: "English 102 essay is due tomorrow — don't forget!",
-    read: true,
-    createdAt: new Date(Date.now() - 172800000).toISOString(),
-  },
-];
 
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -80,8 +47,32 @@ const typeColors = {
 };
 
 export default function NotificationsPage() {
-  const [notifications, setNotifications] = useState<Notification[]>(DEMO_NOTIFICATIONS);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [loaded, setLoaded] = useState(false);
   const [filter, setFilter] = useState<"all" | "unread">("all");
+
+  useEffect(() => {
+    getUserSchedules()
+      .then((scheds) =>
+        setNotifications(
+          (scheds as {
+            id: string;
+            title: string;
+            createdAt: string | Date;
+            classes: { length: number }[];
+          }[]).map((s) => ({
+            id: s.id,
+            type: "schedule_update" as const,
+            title: "Schedule Uploaded",
+            body: `${s.title} is ready — ${s.classes.length} class${s.classes.length !== 1 ? "es" : ""} added.`,
+            read: false,
+            createdAt: typeof s.createdAt === "string" ? s.createdAt : s.createdAt.toISOString(),
+          }))
+        )
+      )
+      .catch(() => {})
+      .finally(() => setLoaded(true));
+  }, []);
 
   function markAsRead(id: string) {
     setNotifications((prev) =>
@@ -102,6 +93,14 @@ export default function NotificationsPage() {
     filter === "unread"
       ? notifications.filter((n) => !n.read)
       : notifications;
+
+  if (!loaded) {
+    return (
+      <div className="mx-auto max-w-3xl flex justify-center py-12">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -151,7 +150,7 @@ export default function NotificationsPage() {
           <p className="text-sm text-muted-foreground">
             {filter === "unread"
               ? "No unread notifications."
-              : "No notifications yet."}
+              : "No notifications yet — upload a schedule to see updates here."}
           </p>
         </div>
       ) : (
