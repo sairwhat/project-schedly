@@ -273,7 +273,7 @@ export default function DashboardPage() {
           </div>
         ) : (
           <div ref={tableRef}>
-            <SchedulePreview classes={allClasses} filename="schedule.png" scale={0.3} />
+            <SchedulePreview classes={allClasses} filename="schedule.png" scale={0.4} />
           </div>
         )}
       </div>
