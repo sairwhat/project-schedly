@@ -90,13 +90,13 @@ export function SchedulePreview({ classes, filename = "schedule.png" }: Props) {
       </div>
 
       <div
-        className="grid gap-2 text-xs"
+        className="grid gap-1 text-[10px]"
         style={{ gridTemplateColumns: `repeat(${activeDays.length}, minmax(0, 1fr))` }}
       >
           {activeDays.map((day) => (
             <div
               key={day}
-              className="rounded-lg bg-primary/10 p-3 text-center font-semibold text-primary"
+              className="rounded-md bg-primary/10 p-1.5 text-center text-xs font-semibold text-primary"
             >
               {DAY_LABELS[day]}
             </div>
@@ -106,21 +106,21 @@ export function SchedulePreview({ classes, filename = "schedule.png" }: Props) {
             activeDays.map((day) => {
               const items = classesAt(day, slot);
               return (
-                <div key={`${slot}-${day}`} className="min-h-[52px]">
+                <div key={`${slot}-${day}`} className="min-h-[44px]">
                   {items.length === 0 ? (
-                    <div className="flex h-full min-h-[52px] items-center justify-center rounded-lg bg-muted/30" />
+                    <div className="flex h-full min-h-[44px] items-center justify-center rounded-md bg-muted/30" />
                   ) : (
-                    <div className="flex flex-col gap-1.5">
+                    <div className="flex flex-col gap-1">
                       {items.map((c) => (
                         <div
                           key={c.id}
-                          className="rounded-lg p-2 text-center"
+                          className="rounded-md p-1 text-center"
                           style={{ backgroundColor: c.color + "1f", color: c.color }}
                         >
-                          <div className="text-[11px] font-semibold leading-tight">
+                          <div className="text-[10px] font-semibold leading-tight break-words">
                             {c.code || c.subject}
                           </div>
-                          <div className="opacity-80">
+                          <div className="text-[9px] opacity-80 leading-tight">
                             {minutesTo12h(timeToMinutes(c.startTime))}–
                             {minutesTo12h(timeToMinutes(c.endTime))}
                           </div>
