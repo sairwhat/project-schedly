@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useAuth } from "@/features/auth/hooks/use-auth";
 import { useUpload } from "@/features/upload";
 import { ScheduleReview } from "@/features/upload";
-import { WeeklyTimetable } from "@/features/schedule/components/weekly-timetable";
+import { SchedulePreview } from "@/features/schedule/components/schedule-preview";
 import { getUserSchedules, getSchedule, deleteSchedule } from "./actions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -280,15 +280,22 @@ export default function SchedulePage() {
           {/* === VIEW TIMETABLE === */}
           {phase === "view" && selectedSchedule && (
             <div className="space-y-4">
-              <div className="flex items-center gap-3">
+              <div className="flex items-center justify-between gap-3">
                 <Button variant="ghost" size="sm" onClick={handleBackToList}>
                   <ArrowLeft className="mr-1 h-4 w-4" /> Back
                 </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 text-destructive hover:text-destructive"
+                  onClick={() => handleDeleteSchedule(selectedSchedule.id)}
+                >
+                  <Trash2 className="mr-1 h-3 w-3" /> Delete
+                </Button>
               </div>
-              <WeeklyTimetable
+              <SchedulePreview
                 classes={selectedSchedule.classes}
-                scheduleTitle={selectedSchedule.title}
-                onDelete={() => handleDeleteSchedule(selectedSchedule.id)}
+                filename={`${selectedSchedule.title}.png`}
               />
             </div>
           )}
