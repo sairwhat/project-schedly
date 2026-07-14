@@ -16,11 +16,6 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Schedly",
   description: "AI-powered schedule management",
-  icons: {
-    icon: "/images/logo.jpg",
-    shortcut: "/images/logo.jpg",
-    apple: "/images/logo.jpg",
-  },
 };
 
 export default function RootLayout({
