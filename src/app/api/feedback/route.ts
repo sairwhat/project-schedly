@@ -34,15 +34,23 @@ export async function POST(request: NextRequest) {
 
   const { type, subject, message, page } = parsed.data;
 
-  const feedback = await db.feedback.create({
-    data: {
-      userId: session.user.id,
-      type,
-      subject: subject ?? null,
-      message,
-      page: page ?? null,
-    },
-  });
+  try {
+    const feedback = await db.feedback.create({
+      data: {
+        userId: session.user.id,
+        type,
+        subject: subject ?? null,
+        message,
+        page: page ?? null,
+      },
+    });
 
-  return NextResponse.json({ success: true, id: feedback.id }, { status: 201 });
+    return NextResponse.json({ success: true, id: feedback.id }, { status: 201 });
+  } catch (err) {
+    console.error("[FEEDBACK_API] Failed to save feedback:", err);
+    return NextResponse.json(
+      { error: "Failed to save feedback. Please try again." },
+      { status: 500 }
+    );
+  }
 }
