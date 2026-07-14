@@ -11,6 +11,7 @@ For each class, extract:
 - days: Array of lowercase day names ["monday", "tuesday", ...]
 - startTime: 24-hour format "HH:MM"
 - endTime: 24-hour format "HH:MM"
+- Convert any 12-hour time (with AM/PM) to 24-hour based on the AM/PM shown on the schedule. Examples: "9:00 AM" -> "09:00", "1:00 PM" -> "13:00", "12:00 AM" -> "00:00", "12:00 PM" -> "12:00"
 
 Return ONLY valid JSON in this exact format:
 {
