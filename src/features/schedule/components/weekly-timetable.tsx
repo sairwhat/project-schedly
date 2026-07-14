@@ -3,6 +3,7 @@
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Trash2 } from "lucide-react";
+import { timeToString } from "@/lib/time";
 
 type ClassData = {
   id: string;
@@ -155,7 +156,7 @@ export function WeeklyTimetable({ classes, scheduleTitle, onDelete }: Props) {
                       color: cls.color,
                       minHeight: "24px",
                     }}
-                    title={`${cls.subject}\n${cls.instructor || ""}\n${cls.room || ""}\n${cls.startTime} - ${cls.endTime}`}
+                      title={`${cls.subject}\n${cls.instructor || ""}\n${cls.room || ""}\n${timeToString(cls.startTime)} - ${timeToString(cls.endTime)}`}
                   >
                     <div className="font-semibold truncate text-foreground" style={{ color: cls.color }}>
                       {cls.code || cls.subject}
