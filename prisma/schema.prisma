@@ -40,7 +40,7 @@ model User {
   lastName      String   @map("last_name")
   birthdate     DateTime? @map("birthdate")
   sex           String?   @map("sex")
-  homeAddress   String?  @map("home_address")
+  isAdmin       Boolean   @default(false) @map("is_admin")
   emailVerified Boolean  @default(false) @map("email_verified")
   failedAttempts Int      @default(0) @map("failed_attempts")
   lockedUntil   DateTime? @map("locked_until")

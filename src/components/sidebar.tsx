@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useState, useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { navGroups, type NavItem } from "@/config/navigation";
@@ -94,6 +95,7 @@ export function Sidebar({ onClose }: { onClose?: () => void }) {
         email?: string;
         image?: string;
         avatarUrl?: string;
+        isAdmin?: boolean;
       }
     | null
     | undefined;
@@ -106,8 +108,12 @@ export function Sidebar({ onClose }: { onClose?: () => void }) {
     .join("")
     .toUpperCase() || firstName.charAt(0).toUpperCase();
   const avatarUrl = u?.image || u?.avatarUrl || null;
-  const now = new Date();
-  const hello = greeting(now.getHours());
+  const [hello, setHello] = useState("Good day");
+
+  useEffect(() => {
+    const h = new Date().getHours();
+    setHello(h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening");
+  }, []);
 
   return (
     <aside className="flex h-full w-full flex-col rounded-3xl bg-sidebar/60 backdrop-blur-2xl shadow-[0_8px_40px_rgba(0,0,0,0.12)]">
@@ -191,6 +197,19 @@ export function Sidebar({ onClose }: { onClose?: () => void }) {
                 Account settings
               </DropdownMenuItem>
             </DropdownMenuGroup>
+            {u?.isAdmin && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuGroup>
+                  <DropdownMenuItem className="cursor-pointer" onClick={() => { if (window.matchMedia("(max-width: 767px)").matches) onClose?.(); router.push("/admin"); }}>
+                    <svg className="mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
+                    </svg>
+                    Admin Dashboard
+                  </DropdownMenuItem>
+                </DropdownMenuGroup>
+              </>
+            )}
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>
               {theme === "dark" ? (

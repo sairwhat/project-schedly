@@ -29,7 +29,6 @@ export function RegisterForm() {
     confirmPassword: "",
     birthdate: "",
     sex: "",
-    homeAddress: "",
   });
   const [errors, setErrors] = useState<Partial<Record<keyof RegisterInput, string>>>({});
   const [serverError, setServerError] = useState("");
@@ -240,20 +239,6 @@ export function RegisterForm() {
                     ))}
                   </div>
                   {errors.sex && <p className="text-xs text-destructive">{errors.sex}</p>}
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="homeAddress" className="text-sm font-medium">Home address</Label>
-                  <Input
-                    id="homeAddress"
-                    type="text"
-                    placeholder="City, Province, Country"
-                    value={form.homeAddress}
-                    onChange={(e) => update("homeAddress", e.target.value)}
-                    aria-invalid={!!errors.homeAddress}
-                    autoComplete="street-address"
-                    className="h-11"
-                  />
-                  {errors.homeAddress && <p className="text-xs text-destructive">{errors.homeAddress}</p>}
                 </div>
               </div>
             )}

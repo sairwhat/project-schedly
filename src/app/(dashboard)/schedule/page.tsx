@@ -49,6 +49,7 @@ export default function SchedulePage() {
   const u = user as UserWithExtras | null;
 
   const [phase, setPhase] = useState<Phase>("list");
+  const [greeting, setGreeting] = useState("Good day");
   const [schedules, setSchedules] = useState<ScheduleData[]>([]);
   const [loadingSchedules, setLoadingSchedules] = useState(true);
   const [selectedSchedule, setSelectedSchedule] = useState<ScheduleData | null>(null);
@@ -62,6 +63,11 @@ export default function SchedulePage() {
   } = useUpload();
 
   useEffect(() => {
+    const h = new Date().getHours();
+    setGreeting(h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening");
+  }, []);
+
+  useEffect(() => {
     if (!authLoading) {
       getUserSchedules().then((data) => {
         setSchedules(data as ScheduleData[]);
@@ -69,14 +75,6 @@ export default function SchedulePage() {
       });
     }
   }, [authLoading]);
-
-  if (authLoading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-      </div>
-    );
-  }
 
   const firstName = u?.firstName || "User";
 
@@ -151,7 +149,7 @@ export default function SchedulePage() {
         <div className="mx-auto max-w-4xl">
           <div className="mb-6 sm:mb-8">
             <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
-              Good {new Date().getHours() < 12 ? "morning" : new Date().getHours() < 18 ? "afternoon" : "evening"}, {firstName}
+              {greeting}, {firstName}
             </h1>
             <p className="mt-1 text-sm text-muted-foreground sm:text-base">
               {phase === "list"

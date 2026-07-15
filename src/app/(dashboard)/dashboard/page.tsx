@@ -96,10 +96,16 @@ export default function DashboardPage() {
   const { user } = useAuth();
   const { todos } = useTodos();
   const [schedules, setSchedules] = useState<ScheduleData[] | null>(null);
+  const [greeting, setGreeting] = useState("Good day");
   const tableRef = useRef<HTMLDivElement>(null);
   const [downloading, setDownloading] = useState(false);
 
   const firstName = (user as { firstName?: string } | null)?.firstName || "User";
+
+  useEffect(() => {
+    const h = new Date().getHours();
+    setGreeting(h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening");
+  }, []);
 
   useEffect(() => {
     getUserSchedules()
@@ -140,7 +146,7 @@ export default function DashboardPage() {
     <div className="mx-auto max-w-4xl space-y-4 py-10">
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
-          Good {new Date().getHours() < 12 ? "morning" : new Date().getHours() < 18 ? "afternoon" : "evening"}, {firstName}
+          {greeting}, {firstName}
         </h1>
         <p className="mt-1 text-sm text-muted-foreground sm:text-base">
           Here&apos;s your day at a glance.

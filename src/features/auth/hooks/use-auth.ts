@@ -17,7 +17,6 @@ export function useAuth() {
       password: string;
       birthdate: string;
       sex: string;
-      homeAddress: string;
     }) => {
       const result = await authClient.signUp.email({
         ...data,

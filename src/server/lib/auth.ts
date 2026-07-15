@@ -31,9 +31,10 @@ export const auth = betterAuth({
         type: "string",
         required: false,
       },
-      homeAddress: {
-        type: "string",
+      isAdmin: {
+        type: "boolean",
         required: false,
+        defaultValue: false,
       },
       avatarUrl: {
         type: "string",

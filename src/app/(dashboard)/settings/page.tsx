@@ -27,7 +27,6 @@ type UserWithExtras = {
   createdAt?: string;
   birthdate?: string;
   sex?: string;
-  homeAddress?: string;
   image?: string;
   avatarUrl?: string;
 } & Record<string, unknown>;
@@ -249,10 +248,6 @@ function OverviewTab({ u, refetchSession }: { u: UserWithExtras | null; refetchS
             <span className="text-sm text-muted-foreground">Sex</span>
             <span className="text-sm font-medium text-foreground capitalize">{u?.sex || "Not set"}</span>
           </div>
-          <div className="flex items-center justify-between py-2 border-b border-border/40">
-            <span className="text-sm text-muted-foreground">Home address</span>
-            <span className="text-sm font-medium text-foreground">{u?.homeAddress || "Not set"}</span>
-          </div>
           <div className="flex items-center justify-between py-2">
             <span className="text-sm text-muted-foreground">Member since</span>
             <span className="text-sm font-medium text-foreground">{memberSince}</span>
@@ -270,7 +265,6 @@ function AccountTab({ u }: { u: UserWithExtras | null }) {
     username: u?.username || "",
     birthdate: u?.birthdate ? new Date(u.birthdate).toISOString().split("T")[0] : "",
     sex: u?.sex || "",
-    homeAddress: u?.homeAddress || "",
   });
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -288,7 +282,6 @@ function AccountTab({ u }: { u: UserWithExtras | null }) {
         lastName: form.lastName,
         birthdate: form.birthdate ? new Date(form.birthdate) : null,
         sex: form.sex,
-        homeAddress: form.homeAddress,
       } as Parameters<typeof authClient.updateUser>[0]);
 
       if (result.error) {
@@ -359,8 +352,7 @@ function AccountTab({ u }: { u: UserWithExtras | null }) {
             ))}
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-2">
+        <div className="space-y-2">
             <Label htmlFor="birthdate" className="text-sm font-medium">Birthdate</Label>
             <Input
               id="birthdate"
@@ -370,17 +362,6 @@ function AccountTab({ u }: { u: UserWithExtras | null }) {
               className="h-10"
             />
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="homeAddress" className="text-sm font-medium">Home address</Label>
-            <Input
-              id="homeAddress"
-              value={form.homeAddress}
-              onChange={(e) => setForm((p) => ({ ...p, homeAddress: e.target.value }))}
-              placeholder="City, Province, Country"
-              className="h-10"
-            />
-          </div>
-        </div>
 
         {success && (
           <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-center dark:border-green-800 dark:bg-green-950">

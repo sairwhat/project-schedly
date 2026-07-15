@@ -49,10 +49,6 @@ const step2Schema = z.object({
   sex: z
     .string()
     .min(1, "Sex is required"),
-  homeAddress: z
-    .string()
-    .min(1, "Home address is required")
-    .max(200, "Address is too long"),
 });
 
 const step3Schema = z

@@ -23,6 +23,8 @@ export async function proxy(request: NextRequest) {
     (route) => pathname === route || pathname.startsWith(route + "/")
   );
 
+  const isAdminRoute = pathname === "/admin" || pathname.startsWith("/admin/");
+
   const sessionCookie = getSessionCookie(request);
 
   if (!sessionCookie && !isPublic) {
@@ -56,6 +58,9 @@ export async function proxy(request: NextRequest) {
           request.url
         )
       );
+    }
+    if (session && isAdminRoute && !(session.user as Record<string, unknown>).isAdmin) {
+      return NextResponse.redirect(new URL("/dashboard", request.url));
     }
   }
 
