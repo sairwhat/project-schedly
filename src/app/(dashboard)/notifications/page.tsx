@@ -122,7 +122,7 @@ export default function NotificationsPage() {
           <button
             key={f}
             onClick={() => setFilter(f)}
-            className={`rounded-md px-3 py-1.5 text-xs font-medium capitalize transition-all ${
+            className={`rounded-md px-3 py-1.5 text-xs font-medium capitalize transition-colors ${
               filter === f
                  ? "bg-card/30 text-foreground shadow-sm"
                 : "text-muted-foreground hover:text-foreground"
@@ -155,7 +155,7 @@ export default function NotificationsPage() {
             return (
               <div
                 key={notification.id}
-                className={`group flex items-start gap-4 rounded-xl bg-card/30 px-4 py-3.5 transition-all hover:shadow-sm border border-border/30 ${
+                className={`group flex items-start gap-4 rounded-xl bg-card/30 px-4 py-3.5 transition-[background-color,box-shadow] hover:shadow-sm border border-border/30 ${
                   !notification.read ? "border-l-2 border-l-primary" : ""
                 }`}
               >

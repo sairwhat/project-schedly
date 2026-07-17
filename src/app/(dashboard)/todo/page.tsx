@@ -80,7 +80,7 @@ export default function TodoPage() {
                   <button
                     key={p}
                     onClick={() => setNewPriority(p)}
-                    className={`rounded-md px-2.5 py-1 text-xs font-medium capitalize transition-all ${
+                    className={`rounded-md px-2.5 py-1 text-xs font-medium capitalize transition-colors ${
                       newPriority === p
                         ? priorityLabels[p]
                         : "bg-muted text-muted-foreground hover:bg-accent"
@@ -111,7 +111,7 @@ export default function TodoPage() {
             <button
               key={f}
               onClick={() => setFilter(f)}
-              className={`rounded-md px-3 py-1.5 text-xs font-medium capitalize transition-all ${
+              className={`rounded-md px-3 py-1.5 text-xs font-medium capitalize transition-colors ${
                 filter === f
                   ? "bg-card/30 text-foreground shadow-sm"
                   : "text-muted-foreground hover:text-foreground"
@@ -149,7 +149,7 @@ export default function TodoPage() {
           {filtered.map((todo) => (
             <div
               key={todo.id}
-              className={`group flex items-center gap-3 rounded-xl border-l-[3px] bg-card/30 px-4 py-3 transition-all hover:shadow-sm ${
+              className={`group flex items-center gap-3 rounded-xl border-l-[3px] bg-card/30 px-4 py-3 transition-[background-color,box-shadow,opacity] hover:shadow-sm ${
                 priorityColors[todo.priority]
               } ${todo.completed ? "opacity-60" : ""}`}
             >

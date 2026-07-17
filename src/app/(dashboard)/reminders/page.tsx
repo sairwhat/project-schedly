@@ -151,7 +151,7 @@ export default function RemindersPage() {
             {visible.map((c, i) => (
               <div
                 key={c.id ?? i}
-                className="flex items-center gap-4 rounded-xl border border-border/30 bg-card/30 px-4 py-3.5 transition-all hover:shadow-sm"
+                className="flex items-center gap-4 rounded-xl border border-border/30 bg-card/30 px-4 py-3.5 transition-[background-color,box-shadow] hover:shadow-sm"
               >
                 <div
                   className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"

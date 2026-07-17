@@ -341,7 +341,7 @@ function AccountTab({ u }: { u: UserWithExtras | null }) {
                 key={option}
                 type="button"
                 onClick={() => setForm((p) => ({ ...p, sex: option.toLowerCase() }))}
-                className={`h-10 rounded-lg border text-sm font-medium transition-all ${
+                className={`h-10 rounded-lg border text-sm font-medium transition-colors ${
                   form.sex === option.toLowerCase()
                     ? "border-primary bg-primary/5 text-primary"
                     : "border-border/60 bg-card/50 text-muted-foreground hover:border-border hover:text-foreground"

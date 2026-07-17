@@ -57,7 +57,7 @@ function NavItemLink({ item, onNavigate }: { item: NavItem; onNavigate?: () => v
         }
       }}
       className={cn(
-        "group relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200",
+        "group relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors duration-200",
         isActive
           ? "bg-sidebar-primary/15 text-sidebar-primary"
           : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
@@ -118,7 +118,7 @@ export function Sidebar({ onClose }: { onClose?: () => void }) {
   }, []);
 
   return (
-    <aside className="flex h-full w-full flex-col rounded-3xl bg-sidebar/60 backdrop-blur-2xl shadow-[0_8px_40px_rgba(0,0,0,0.12)]">
+    <aside className="flex h-full w-full flex-col rounded-3xl bg-sidebar/95 shadow-[0_8px_40px_rgba(0,0,0,0.12)]">
       {/* Brand */}
       <div className="flex h-16 items-center gap-2.5 px-5">
         <img src="/images/logo.jpg" alt="Schedly" className="h-9 w-9 shrink-0 rounded-xl object-cover" />

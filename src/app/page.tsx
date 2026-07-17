@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 export default function Home() {
   return (
     <div className="flex flex-col min-h-screen">
-      <header className="sticky top-0 z-50 border-b border-border/40 bg-background/80 backdrop-blur-md">
+      <header className="sticky top-0 z-50 border-b border-border/40 bg-background/95">
         <div className="container mx-auto flex h-16 items-center justify-between px-4 md:px-6">
             <Link href="/" className="flex items-center gap-2.5">
               <img src="/images/logo.jpg" alt="Schedly" className="h-8 w-8 rounded-lg object-cover" />
@@ -35,7 +35,7 @@ export default function Home() {
           <div className="relative container mx-auto flex flex-col items-center gap-8 px-4 pt-24 pb-20 text-center md:pt-32 md:pb-28">
             <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-4 py-1.5 text-sm font-medium text-primary">
               <span className="relative flex h-2 w-2">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75" />
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75 [animation-iteration-count:3]" />
                 <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
               </span>
               AI-powered schedule management

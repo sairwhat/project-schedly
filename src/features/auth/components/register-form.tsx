@@ -132,7 +132,7 @@ export function RegisterForm() {
           {Array.from({ length: TOTAL_STEPS }).map((_, i) => (
             <div
               key={i}
-              className={`h-1 flex-1 rounded-full transition-all duration-300 ${
+              className={`h-1 flex-1 rounded-full transition-[background-color] duration-300 ${
                 i < step ? "bg-primary" : "bg-muted"
               }`}
             />
@@ -228,7 +228,7 @@ export function RegisterForm() {
                         key={option}
                         type="button"
                         onClick={() => update("sex", option.toLowerCase())}
-                        className={`h-11 rounded-lg border text-sm font-medium transition-all ${
+                        className={`h-11 rounded-lg border text-sm font-medium transition-colors ${
                           form.sex === option.toLowerCase()
                             ? "border-primary bg-primary/5 text-primary"
                             : "border-border/60 bg-card/50 text-muted-foreground hover:border-border hover:text-foreground"
