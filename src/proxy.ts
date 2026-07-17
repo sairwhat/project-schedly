@@ -33,7 +33,7 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  if (sessionCookie && (pathname === "/login" || pathname === "/register")) {
+  if (sessionCookie && (pathname === "/" || pathname === "/login" || pathname === "/register")) {
     const session = await auth.api.getSession({ headers: request.headers });
     if (!session) {
       return NextResponse.next();
