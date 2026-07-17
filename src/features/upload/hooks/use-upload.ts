@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useCallback } from "react";
 
 export type ExtractedClass = {
   subject: string;
@@ -21,122 +21,105 @@ type UploadStatus = {
   fileUrl?: string;
 };
 
-type StepLabel =
-  | "Uploading image..."
-  | "Sending to server..."
-  | "AI analyzing your schedule..."
-  | "Extracting class data..."
-  | "Validating results..."
-  | "Done!";
-
-const STEPS: { label: StepLabel; progress: number }[] = [
-  { label: "Uploading image...", progress: 8 },
-  { label: "Sending to server...", progress: 20 },
-  { label: "AI analyzing your schedule...", progress: 40 },
-  { label: "Extracting class data...", progress: 65 },
-  { label: "Validating results...", progress: 85 },
-  { label: "Done!", progress: 100 },
-];
-
 export function useUpload() {
   const [upload, setUpload] = useState<UploadStatus | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [stepLabel, setStepLabel] = useState<StepLabel | null>(null);
-  const [currentStep, setCurrentStep] = useState(0);
+  const [isProcessing, setIsProcessing] = useState(false);
   const [extractedClasses, setExtractedClasses] = useState<ExtractedClass[]>([]);
   const [metadata, setMetadata] = useState<{ confidence: number; notes?: string | null } | null>(null);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const clearTimer = useCallback(() => {
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-      timerRef.current = null;
-    }
-  }, []);
+  const uploadFile = (file: File): Promise<Record<string, unknown>> => {
+    return new Promise((resolve, reject) => {
+      const uploadId = crypto.randomUUID();
+      setUpload({ id: uploadId, status: "uploading", progress: 0 });
+      setIsUploading(true);
+      setProgress(0);
+      setIsProcessing(false);
+      setExtractedClasses([]);
+      setMetadata(null);
 
-  const advanceSteps = useCallback((startIdx: number, duration: number) => {
-    clearTimer();
-    const remaining = STEPS.slice(startIdx);
-    const interval = duration / remaining.length;
-    let idx = 0;
+      const xhr = new XMLHttpRequest();
 
-    timerRef.current = setInterval(() => {
-      if (idx < remaining.length) {
-        const step = remaining[idx]!;
-        setProgress(step.progress);
-        setStepLabel(step.label);
-        setCurrentStep(startIdx + idx);
-        idx++;
-      } else {
-        clearTimer();
-      }
-    }, interval);
-  }, [clearTimer]);
+      xhr.upload.addEventListener("progress", (e) => {
+        if (e.lengthComputable) {
+          const pct = Math.round((e.loaded / e.total) * 100);
+          setProgress(pct);
+          setUpload((prev) => prev ? { ...prev, progress: pct } : null);
+        }
+      });
 
-  const uploadFile = async (file: File) => {
-    const uploadId = crypto.randomUUID();
-    setUpload({ id: uploadId, status: "pending", progress: 0 });
-    setIsUploading(true);
-    setProgress(0);
-    setCurrentStep(0);
-    setStepLabel(STEPS[0]!.label);
-    setExtractedClasses([]);
-    setMetadata(null);
+      xhr.addEventListener("load", () => {
+        setProgress(100);
+        setIsProcessing(false);
 
-    advanceSteps(0, 6000);
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            const data = JSON.parse(xhr.responseText);
+            setExtractedClasses(data.classes || []);
+            setMetadata(data.metadata || { confidence: 0 });
+            setUpload((prev) => prev ? {
+              ...prev,
+              status: "completed",
+              progress: 100,
+              fileUrl: data.fileUrl,
+              id: data.uploadId,
+            } : null);
+            resolve(data);
+          } catch {
+            setUpload((prev) => prev ? { ...prev, status: "failed", error: "Invalid response" } : null);
+            reject(new Error("Invalid response"));
+          }
+        } else {
+          try {
+            const err = JSON.parse(xhr.responseText);
+            throw new Error(err.error || "Upload failed");
+          } catch (e) {
+            const msg = e instanceof Error ? e.message : "Upload failed";
+            setUpload((prev) => prev ? { ...prev, status: "failed", error: msg } : null);
+            reject(e);
+          }
+        }
+      });
 
-    try {
+      xhr.addEventListener("error", () => {
+        setIsProcessing(false);
+        setUpload((prev) => prev ? { ...prev, status: "failed", error: "Network error" } : null);
+        reject(new Error("Network error"));
+      });
+
+      xhr.addEventListener("abort", () => {
+        setIsProcessing(false);
+        setUpload((prev) => prev ? { ...prev, status: "failed", error: "Upload cancelled" } : null);
+        reject(new Error("Upload cancelled"));
+      });
+
+      xhr.open("POST", "/api/upload");
+
       const formData = new FormData();
       formData.append("file", file);
 
-      const response = await fetch("/api/upload", {
-        method: "POST",
-        body: formData,
-      });
+      xhr.send(formData);
 
-      clearTimer();
-
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({ error: "Upload failed" }));
-        throw new Error(error.error || "Upload failed");
-      }
-
-      const data = await response.json();
-
-      setProgress(100);
-      setStepLabel("Done!");
-      setCurrentStep(STEPS.length - 1);
-      setExtractedClasses(data.classes || []);
-      setMetadata(data.metadata || { confidence: 0 });
-      setUpload((prev) => prev ? {
-        ...prev,
-        status: "completed",
-        progress: 100,
-        fileUrl: data.fileUrl,
-        id: data.uploadId,
-      } : null);
-
-      return data;
-    } catch (err) {
-      clearTimer();
-      const message = err instanceof Error ? err.message : "Upload failed";
-      setUpload((prev) => prev ? { ...prev, status: "failed", error: message, progress: 0 } : null);
-      setStepLabel(null);
-      setProgress(0);
-      throw err;
-    } finally {
-      setIsUploading(false);
-    }
+      // After a short delay (file is small, upload is fast), switch to processing
+      // The upload progress will naturally reach ~100% before server responds
+      setTimeout(() => {
+        setUpload((prev) => {
+          if (prev && prev.status === "uploading" && prev.progress >= 90) {
+            setIsProcessing(true);
+            return { ...prev, status: "processing" };
+          }
+          return prev;
+        });
+      }, 800);
+    });
   };
 
   const resetUpload = () => {
-    clearTimer();
     setUpload(null);
     setIsUploading(false);
     setProgress(0);
-    setStepLabel(null);
-    setCurrentStep(0);
+    setIsProcessing(false);
     setExtractedClasses([]);
     setMetadata(null);
   };
@@ -169,9 +152,7 @@ export function useUpload() {
     upload,
     isUploading,
     progress,
-    stepLabel,
-    currentStep,
-    totalSteps: STEPS.length,
+    isProcessing,
     uploadFile,
     resetUpload,
     extractedClasses,

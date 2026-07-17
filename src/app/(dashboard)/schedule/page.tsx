@@ -58,7 +58,7 @@ export default function SchedulePage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const {
-    uploadFile, isUploading, progress, upload, stepLabel, currentStep, totalSteps,
+    uploadFile, isUploading, progress, upload, isProcessing,
     extractedClasses, metadata,
     updateExtractedClass, removeExtractedClass, addExtractedClass, resetUpload,
   } = useUpload();
@@ -105,12 +105,13 @@ export default function SchedulePage() {
       return;
     }
     setSelectedFile(file);
-    setPreviewUrl(URL.createObjectURL(file));
+    const reader = new FileReader();
+    reader.onload = () => setPreviewUrl(reader.result as string);
+    reader.readAsDataURL(file);
   };
 
   const removeFile = () => {
     setSelectedFile(null);
-    if (previewUrl) URL.revokeObjectURL(previewUrl);
     setPreviewUrl(null);
     resetUpload();
   };
@@ -118,7 +119,7 @@ export default function SchedulePage() {
   const handleUpload = async () => {
     if (!selectedFile) return;
     try {
-      const data = await uploadFile(selectedFile);
+      const data = await uploadFile(selectedFile) as { classes?: unknown[] };
       if (data.classes && data.classes.length > 0) {
         setPhase("review");
       }
@@ -189,8 +190,8 @@ export default function SchedulePage() {
                 </div>
               </div>
               {previewUrl && (
-                <div className="relative aspect-video rounded-xl overflow-hidden bg-muted max-h-48">
-                  <img src={previewUrl} alt="Schedule" className="h-full w-full object-contain" />
+                <div className="relative max-h-48 overflow-hidden rounded-xl bg-muted">
+                  <img src={previewUrl} alt="Uploaded schedule" className="h-full w-full object-contain" />
                 </div>
               )}
               <ScheduleReview
@@ -244,10 +245,16 @@ export default function SchedulePage() {
                   </>
                 ) : (
                   <div className="w-full max-w-md space-y-4">
-                    <div className="relative aspect-video rounded-xl overflow-hidden bg-muted">
-                      <img src={previewUrl ?? ""} alt="Schedule preview" className="h-full w-full object-cover" />
+                    <div className="relative aspect-video overflow-hidden rounded-xl bg-muted">
+                      {previewUrl ? (
+                        <img src={previewUrl} alt="Schedule preview" className="h-full w-full object-contain" />
+                      ) : (
+                        <div className="flex h-full items-center justify-center">
+                          <Skeleton className="h-full w-full" />
+                        </div>
+                      )}
                       {!isUploading && (
-                        <button onClick={removeFile} className="absolute top-2 right-2 rounded-full bg-background/80 p-1 hover:bg-background" aria-label="Remove">
+                        <button onClick={removeFile} className="absolute right-2 top-2 rounded-full bg-background/80 p-1 hover:bg-background" aria-label="Remove">
                           <span className="text-lg">&times;</span>
                         </button>
                       )}
@@ -262,29 +269,16 @@ export default function SchedulePage() {
                         {/* Progress bar */}
                         <div className="relative h-2 w-full overflow-hidden rounded-full bg-primary/10">
                           <div
-                            className="absolute inset-y-0 left-0 rounded-full bg-primary transition-all duration-500 ease-out"
-                            style={{ width: `${progress}%` }}
+                            className={`absolute inset-y-0 left-0 rounded-full bg-primary transition-all duration-300 ease-out ${
+                              isProcessing ? "animate-pulse" : ""
+                            }`}
+                            style={{ width: isProcessing ? "100%" : `${progress}%` }}
                           />
                         </div>
-                        {/* Step label */}
+                        {/* Status text */}
                         <p className="text-center text-sm font-medium text-foreground">
-                          {stepLabel}
+                          {isProcessing ? "AI is analyzing your schedule..." : `Uploading ${progress}%`}
                         </p>
-                        {/* Step indicators */}
-                        <div className="flex items-center justify-center gap-1.5">
-                          {Array.from({ length: totalSteps }).map((_, i) => (
-                            <div
-                              key={i}
-                              className={`h-1.5 rounded-full transition-all duration-300 ${
-                                i < currentStep
-                                  ? "w-1.5 bg-primary"
-                                  : i === currentStep
-                                    ? "w-4 bg-primary"
-                                    : "w-1.5 bg-primary/20"
-                              }`}
-                            />
-                          ))}
-                        </div>
                       </div>
                     ) : (
                       <div className="flex gap-3">
@@ -296,7 +290,7 @@ export default function SchedulePage() {
                     )}
 
                     {upload?.error && (
-                      <p className="text-sm text-red-500 flex items-center gap-1">
+                      <p className="flex items-center gap-1 text-sm text-red-500">
                         <AlertCircle className="h-4 w-4" /> {upload.error}
                       </p>
                     )}
@@ -348,7 +342,7 @@ export default function SchedulePage() {
                           <Skeleton className="h-5 w-32" />
                           <Skeleton className="h-4 w-4 rounded" />
                         </div>
-                        <Skeleton className="h-3 w-24 mt-1" />
+                        <Skeleton className="mt-1 h-3 w-24" />
                       </CardHeader>
                       <CardContent>
                         <div className="flex items-center gap-2">
@@ -366,7 +360,7 @@ export default function SchedulePage() {
                     <Calendar className="h-7 w-7 text-primary/70" />
                   </div>
                   <h3 className="text-lg font-semibold text-foreground">No schedules yet</h3>
-                  <p className="mt-1 max-w-xs text-sm text-muted-foreground leading-relaxed">
+                  <p className="mt-1 max-w-xs text-sm leading-relaxed text-muted-foreground">
                     Upload a photo of your class schedule and let Schedly extract your timetable automatically.
                   </p>
                   <Button className="mt-5" onClick={() => setPhase("upload-select")}>
@@ -384,7 +378,7 @@ export default function SchedulePage() {
                       <CardHeader className="pb-2">
                         <div className="flex items-start justify-between">
                           <CardTitle className="text-base">{schedule.title}</CardTitle>
-                          <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0 mt-1" />
+                          <ChevronRight className="mt-1 h-4 w-4 shrink-0 text-muted-foreground" />
                         </div>
                         {(schedule.semester || schedule.academicYear) && (
                           <p className="text-xs text-muted-foreground">
@@ -393,7 +387,7 @@ export default function SchedulePage() {
                         )}
                       </CardHeader>
                       <CardContent>
-                        <div className="flex items-center gap-2 flex-wrap">
+                        <div className="flex flex-wrap items-center gap-2">
                           <Badge variant="secondary" className="text-xs">
                             {schedule.classes.length} class{schedule.classes.length !== 1 ? "es" : ""}
                           </Badge>
