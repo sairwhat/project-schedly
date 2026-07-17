@@ -167,7 +167,7 @@ export function Sidebar({ onClose }: { onClose?: () => void }) {
             </div>
             <ChevronDown className="h-4 w-4 shrink-0 text-sidebar-foreground/40" />
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" side="left" className="w-56 p-2">
+          <DropdownMenuContent align="center" side="top" className="w-56 p-2">
             <DropdownMenuGroup>
               <DropdownMenuLabel className="font-normal">
                 <div className="flex items-center gap-3 rounded-xl bg-sidebar-primary/5 px-3 py-2.5">

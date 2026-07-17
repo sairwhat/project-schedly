@@ -52,3 +52,14 @@ src/generated/
 
 # docker
 docker-compose.override.yml
+
+# capacitor / android
+android/.gradle/
+android/app/build/
+android/build/
+android/local.properties
+android/.idea/
+android/capacitor.settings.gradle
+android/capacitor.build.gradle
+android/app/capacitor.build.gradle
+www/
