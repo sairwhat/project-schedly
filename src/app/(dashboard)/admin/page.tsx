@@ -68,7 +68,7 @@ export default function AdminPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-4 sm:p-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
           Admin Dashboard
@@ -92,14 +92,15 @@ export default function AdminPage() {
           <CardTitle className="text-base">Users</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="overflow-x-auto">
+          {/* Desktop table */}
+          <div className="hidden overflow-x-auto sm:block">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border/40 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
                   <th className="pb-3 pr-4">Name</th>
                   <th className="pb-3 pr-4">Email</th>
-                  <th className="hidden pb-3 pr-4 sm:table-cell">Username</th>
-                  <th className="hidden pb-3 pr-4 md:table-cell">Joined</th>
+                  <th className="pb-3 pr-4">Username</th>
+                  <th className="pb-3 pr-4">Joined</th>
                   <th className="pb-3 pr-4">Role</th>
                   <th className="pb-3 text-right">Action</th>
                 </tr>
@@ -111,10 +112,8 @@ export default function AdminPage() {
                       {user.firstName} {user.lastName}
                     </td>
                     <td className="py-3 pr-4 text-muted-foreground">{user.email}</td>
-                    <td className="hidden py-3 pr-4 text-muted-foreground sm:table-cell">
-                      @{user.username}
-                    </td>
-                    <td className="hidden py-3 pr-4 text-muted-foreground md:table-cell">
+                    <td className="py-3 pr-4 text-muted-foreground">@{user.username}</td>
+                    <td className="py-3 pr-4 text-muted-foreground">
                       {new Date(user.createdAt).toLocaleDateString("en-US", {
                         month: "short",
                         day: "numeric",
@@ -122,35 +121,41 @@ export default function AdminPage() {
                       })}
                     </td>
                     <td className="py-3 pr-4">
-                      <span
-                        className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
-                          user.isAdmin
-                            ? "bg-primary/10 text-primary"
-                            : "bg-muted text-muted-foreground"
-                        }`}
-                      >
-                        {user.isAdmin ? "Admin" : "User"}
-                      </span>
+                      <RoleBadge isAdmin={user.isAdmin} />
                     </td>
                     <td className="py-3 text-right">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-7 text-xs"
-                        disabled={togglingId === user.id}
-                        onClick={() => handleToggle(user.id)}
-                      >
-                        {togglingId === user.id
-                          ? "Updating..."
-                          : user.isAdmin
-                            ? "Remove Admin"
-                            : "Make Admin"}
-                      </Button>
+                      <ToggleAdminButton user={user} togglingId={togglingId} onToggle={handleToggle} />
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
+          </div>
+
+          {/* Mobile cards */}
+          <div className="space-y-3 sm:hidden">
+            {users.map((user) => (
+              <div key={user.id} className="rounded-xl border border-border/40 bg-muted/20 p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="font-medium text-foreground text-sm">
+                    {user.firstName} {user.lastName}
+                  </p>
+                  <RoleBadge isAdmin={user.isAdmin} />
+                </div>
+                <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+                <p className="text-xs text-muted-foreground">@{user.username}</p>
+                <div className="flex items-center justify-between pt-1">
+                  <p className="text-xs text-muted-foreground">
+                    {new Date(user.createdAt).toLocaleDateString("en-US", {
+                      month: "short",
+                      day: "numeric",
+                      year: "numeric",
+                    })}
+                  </p>
+                  <ToggleAdminButton user={user} togglingId={togglingId} onToggle={handleToggle} />
+                </div>
+              </div>
+            ))}
           </div>
         </CardContent>
       </Card>
@@ -166,5 +171,45 @@ function StatCard({ label, value }: { label: string; value: number }) {
         <p className="mt-1 text-xs font-medium text-muted-foreground">{label}</p>
       </CardContent>
     </Card>
+  );
+}
+
+function RoleBadge({ isAdmin }: { isAdmin: boolean }) {
+  return (
+    <span
+      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
+        isAdmin
+          ? "bg-primary/10 text-primary"
+          : "bg-muted text-muted-foreground"
+      }`}
+    >
+      {isAdmin ? "Admin" : "User"}
+    </span>
+  );
+}
+
+function ToggleAdminButton({
+  user,
+  togglingId,
+  onToggle,
+}: {
+  user: AdminUser;
+  togglingId: string | null;
+  onToggle: (id: string) => void;
+}) {
+  return (
+    <Button
+      variant="outline"
+      size="sm"
+      className="h-7 text-xs"
+      disabled={togglingId === user.id}
+      onClick={() => onToggle(user.id)}
+    >
+      {togglingId === user.id
+        ? "Updating..."
+        : user.isAdmin
+          ? "Remove Admin"
+          : "Make Admin"}
+    </Button>
   );
 }
