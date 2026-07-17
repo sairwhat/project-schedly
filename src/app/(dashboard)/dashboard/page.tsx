@@ -1,9 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Capacitor } from "@capacitor/core";
-import { Filesystem, Directory } from "@capacitor/filesystem";
-import { Share } from "@capacitor/share";
+import { Capacitor, registerPlugin } from "@capacitor/core";
 import { useAuth } from "@/features/auth/hooks/use-auth";
 import { getUserSchedules } from "@/app/(dashboard)/schedule/actions";
 import { SchedulePreview } from "@/features/schedule/components/schedule-preview";
@@ -93,6 +91,11 @@ function getNextClass(classes: ClassData[]) {
   }
   return best;
 }
+
+interface GallerySavePlugin {
+  save(options: { data: string; filename: string }): Promise<{ success: boolean }>;
+}
+const GallerySave = registerPlugin<GallerySavePlugin>("GallerySave");
 
 export default function DashboardPage() {
   const { user } = useAuth();
@@ -239,17 +242,9 @@ export default function DashboardPage() {
       const dataUrl = canvas.toDataURL("image/png");
 
       if (Capacitor.isNativePlatform()) {
-        const parts = dataUrl.split(",");
-        const base64 = parts[1] || "";
-        const result = await Filesystem.writeFile({
-          path: "schedule.png",
-          data: base64,
-          directory: Directory.Cache,
-        });
-        await Share.share({
-          title: "Schedule",
-          files: [result.uri],
-        });
+        const base64 = dataUrl.split(",")[1] || "";
+        await GallerySave.save({ data: base64, filename: "schedule.png" });
+        alert("Schedule saved to your gallery!");
       } else {
         const a = document.createElement("a");
         a.href = dataUrl;
