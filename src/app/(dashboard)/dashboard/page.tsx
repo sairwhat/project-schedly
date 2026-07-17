@@ -125,18 +125,32 @@ export default function DashboardPage() {
     if (!tableRef.current) return;
     setDownloading(true);
     try {
-      const dataUrl = await toPng(tableRef.current, {
-        backgroundColor: getComputedStyle(document.body).backgroundColor,
+      const node = tableRef.current;
+      const dataUrl = await toPng(node, {
+        backgroundColor: "#ffffff",
         pixelRatio: 2,
         cacheBust: true,
         skipFonts: true,
+        style: {
+          transform: "scale(1)",
+          transformOrigin: "top left",
+        },
+        filter: (domNode) => {
+          if (domNode instanceof HTMLElement && domNode.classList) {
+            return !domNode.classList.contains("sr-only");
+          }
+          return true;
+        },
       });
       const a = document.createElement("a");
       a.href = dataUrl;
       a.download = "schedule.png";
+      document.body.appendChild(a);
       a.click();
+      document.body.removeChild(a);
     } catch (err) {
       console.error("Download failed", err);
+      alert("Failed to download image. Please try again.");
     } finally {
       setDownloading(false);
     }
