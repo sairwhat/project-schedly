@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Bell, Clock, CalendarDays, MapPin, Camera, Loader2 } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Bell, Clock, CalendarDays, MapPin, Camera } from "lucide-react";
 import { getUserSchedules } from "@/app/(dashboard)/schedule/actions";
 
 type Day =
@@ -126,8 +127,21 @@ export default function RemindersPage() {
       </div>
 
       {schedules === null ? (
-        <div className="flex justify-center py-12">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <div className="space-y-3">
+          <Skeleton className="h-3 w-16" />
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="flex items-center gap-4 rounded-xl border border-border/30 bg-card/30 px-4 py-3.5">
+              <Skeleton className="h-9 w-9 shrink-0 rounded-lg" />
+              <div className="flex-1 space-y-2">
+                <Skeleton className="h-4 w-28" />
+                <div className="flex gap-3">
+                  <Skeleton className="h-3 w-24" />
+                  <Skeleton className="h-3 w-20" />
+                  <Skeleton className="h-3 w-16" />
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
       ) : schedules.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border/60 bg-card/30 px-6 py-16 text-center">

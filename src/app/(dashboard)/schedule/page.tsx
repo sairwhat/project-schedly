@@ -9,8 +9,9 @@ import { getUserSchedules, getSchedule, deleteSchedule } from "./actions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
-  Loader2, Camera, Image, AlertCircle, CheckCircle, ArrowLeft,
+  Camera, Image, AlertCircle, CheckCircle, ArrowLeft,
   Plus, Calendar, ChevronRight, Trash2,
 } from "lucide-react";
 
@@ -57,7 +58,7 @@ export default function SchedulePage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const {
-    uploadFile, isUploading, progress, upload,
+    uploadFile, isUploading, progress, upload, stepLabel, currentStep, totalSteps,
     extractedClasses, metadata,
     updateExtractedClass, removeExtractedClass, addExtractedClass, resetUpload,
   } = useUpload();
@@ -245,25 +246,55 @@ export default function SchedulePage() {
                   <div className="w-full max-w-md space-y-4">
                     <div className="relative aspect-video rounded-xl overflow-hidden bg-muted">
                       <img src={previewUrl ?? ""} alt="Schedule preview" className="h-full w-full object-cover" />
-                      <button onClick={removeFile} className="absolute top-2 right-2 rounded-full bg-background/80 p-1 hover:bg-background" aria-label="Remove">
-                        <span className="text-lg">&times;</span>
-                      </button>
+                      {!isUploading && (
+                        <button onClick={removeFile} className="absolute top-2 right-2 rounded-full bg-background/80 p-1 hover:bg-background" aria-label="Remove">
+                          <span className="text-lg">&times;</span>
+                        </button>
+                      )}
                     </div>
                     <div className="space-y-2">
                       <p className="text-sm font-medium text-foreground">{selectedFile.name}</p>
                       <p className="text-xs text-muted-foreground">{(selectedFile.size / 1024 / 1024).toFixed(2)} MB &middot; {selectedFile.type}</p>
                     </div>
-                    <div className="flex gap-3">
-                      <Button variant="outline" onClick={removeFile} disabled={isUploading} className="flex-1">Cancel</Button>
-                      <Button onClick={handleUpload} disabled={isUploading} className="flex-1">
-                        {isUploading ? (
-                          <><Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            {progress < 50 ? "Uploading..." : progress < 100 ? "Analyzing..." : "Done"}</>
-                        ) : (
-                          <><CheckCircle className="mr-2 h-4 w-4" /> Extract Schedule</>
-                        )}
-                      </Button>
-                    </div>
+
+                    {isUploading ? (
+                      <div className="space-y-3">
+                        {/* Progress bar */}
+                        <div className="relative h-2 w-full overflow-hidden rounded-full bg-primary/10">
+                          <div
+                            className="absolute inset-y-0 left-0 rounded-full bg-primary transition-all duration-500 ease-out"
+                            style={{ width: `${progress}%` }}
+                          />
+                        </div>
+                        {/* Step label */}
+                        <p className="text-center text-sm font-medium text-foreground">
+                          {stepLabel}
+                        </p>
+                        {/* Step indicators */}
+                        <div className="flex items-center justify-center gap-1.5">
+                          {Array.from({ length: totalSteps }).map((_, i) => (
+                            <div
+                              key={i}
+                              className={`h-1.5 rounded-full transition-all duration-300 ${
+                                i < currentStep
+                                  ? "w-1.5 bg-primary"
+                                  : i === currentStep
+                                    ? "w-4 bg-primary"
+                                    : "w-1.5 bg-primary/20"
+                              }`}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex gap-3">
+                        <Button variant="outline" onClick={removeFile} className="flex-1">Cancel</Button>
+                        <Button onClick={handleUpload} className="flex-1">
+                          <CheckCircle className="mr-2 h-4 w-4" /> Extract Schedule
+                        </Button>
+                      </div>
+                    )}
+
                     {upload?.error && (
                       <p className="text-sm text-red-500 flex items-center gap-1">
                         <AlertCircle className="h-4 w-4" /> {upload.error}
@@ -309,8 +340,25 @@ export default function SchedulePage() {
               </div>
 
               {loadingSchedules ? (
-                <div className="flex justify-center py-12">
-                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {[1, 2].map((i) => (
+                    <Card key={i} className="border-border/50">
+                      <CardHeader className="pb-2">
+                        <div className="flex items-start justify-between">
+                          <Skeleton className="h-5 w-32" />
+                          <Skeleton className="h-4 w-4 rounded" />
+                        </div>
+                        <Skeleton className="h-3 w-24 mt-1" />
+                      </CardHeader>
+                      <CardContent>
+                        <div className="flex items-center gap-2">
+                          <Skeleton className="h-5 w-16 rounded-full" />
+                          <Skeleton className="h-5 w-12 rounded-full" />
+                          <Skeleton className="h-5 w-10 rounded-full" />
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
                 </div>
               ) : schedules.length === 0 ? (
                 <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border/60 bg-card/30 px-6 py-16 text-center">

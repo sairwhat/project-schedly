@@ -8,6 +8,7 @@ import { SchedulePreview } from "@/features/schedule/components/schedule-preview
 import { useTodos, isToday } from "@/features/todo/use-todos";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   CalendarClock,
   ListTodo,
@@ -284,7 +285,11 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             {schedules === null ? (
-              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              <div className="space-y-2">
+                <Skeleton className="h-6 w-24" />
+                <Skeleton className="h-3 w-36" />
+                <Skeleton className="h-3 w-20" />
+              </div>
             ) : nextClass ? (
               <div>
                 <p className="text-lg font-semibold text-foreground">
@@ -381,8 +386,17 @@ export default function DashboardPage() {
         </div>
 
         {schedules === null ? (
-          <div className="flex justify-center py-12">
-            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          <div className="space-y-3">
+            <div className="grid grid-cols-7 gap-1">
+              {Array.from({ length: 7 }).map((_, i) => (
+                <Skeleton key={i} className="h-6 w-full" />
+              ))}
+            </div>
+            <div className="grid grid-cols-7 gap-1">
+              {Array.from({ length: 21 }).map((_, i) => (
+                <Skeleton key={i} className="h-12 w-full" />
+              ))}
+            </div>
           </div>
         ) : schedules.length === 0 ? (
           <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border/60 bg-card/30 px-6 py-16 text-center">

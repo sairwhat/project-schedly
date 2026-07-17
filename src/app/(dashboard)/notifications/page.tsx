@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { getUserSchedules } from "@/app/(dashboard)/schedule/actions";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Bell,
   Check,
@@ -11,7 +12,6 @@ import {
   Calendar,
   Info,
   Clock,
-  Loader2,
 } from "lucide-react";
 
 type Notification = {
@@ -91,8 +91,27 @@ export default function NotificationsPage() {
 
   if (!loaded) {
     return (
-      <div className="mx-auto max-w-3xl flex justify-center py-12">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      <div className="mx-auto max-w-3xl space-y-6 py-8">
+        <div>
+          <Skeleton className="h-8 w-40" />
+          <Skeleton className="h-4 w-48 mt-2" />
+        </div>
+        <Skeleton className="h-8 w-28 rounded-lg" />
+        <div className="space-y-2">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="flex items-start gap-4 rounded-xl bg-card/30 px-4 py-3.5 border border-border/30">
+              <Skeleton className="h-9 w-9 shrink-0 rounded-lg" />
+              <div className="flex-1 space-y-2">
+                <div className="flex items-center justify-between">
+                  <Skeleton className="h-4 w-36" />
+                  <Skeleton className="h-2 w-2 rounded-full" />
+                </div>
+                <Skeleton className="h-3 w-full" />
+                <Skeleton className="h-3 w-16" />
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     );
   }

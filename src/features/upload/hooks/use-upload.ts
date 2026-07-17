@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useCallback } from "react";
+
 export type ExtractedClass = {
   subject: string;
   code: string | null;
@@ -20,25 +21,72 @@ type UploadStatus = {
   fileUrl?: string;
 };
 
+type StepLabel =
+  | "Uploading image..."
+  | "Sending to server..."
+  | "AI analyzing your schedule..."
+  | "Extracting class data..."
+  | "Validating results..."
+  | "Done!";
+
+const STEPS: { label: StepLabel; progress: number }[] = [
+  { label: "Uploading image...", progress: 8 },
+  { label: "Sending to server...", progress: 20 },
+  { label: "AI analyzing your schedule...", progress: 40 },
+  { label: "Extracting class data...", progress: 65 },
+  { label: "Validating results...", progress: 85 },
+  { label: "Done!", progress: 100 },
+];
+
 export function useUpload() {
   const [upload, setUpload] = useState<UploadStatus | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [stepLabel, setStepLabel] = useState<StepLabel | null>(null);
+  const [currentStep, setCurrentStep] = useState(0);
   const [extractedClasses, setExtractedClasses] = useState<ExtractedClass[]>([]);
   const [metadata, setMetadata] = useState<{ confidence: number; notes?: string | null } | null>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const clearTimer = useCallback(() => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+  }, []);
+
+  const advanceSteps = useCallback((startIdx: number, duration: number) => {
+    clearTimer();
+    const remaining = STEPS.slice(startIdx);
+    const interval = duration / remaining.length;
+    let idx = 0;
+
+    timerRef.current = setInterval(() => {
+      if (idx < remaining.length) {
+        const step = remaining[idx]!;
+        setProgress(step.progress);
+        setStepLabel(step.label);
+        setCurrentStep(startIdx + idx);
+        idx++;
+      } else {
+        clearTimer();
+      }
+    }, interval);
+  }, [clearTimer]);
 
   const uploadFile = async (file: File) => {
     const uploadId = crypto.randomUUID();
     setUpload({ id: uploadId, status: "pending", progress: 0 });
     setIsUploading(true);
     setProgress(0);
+    setCurrentStep(0);
+    setStepLabel(STEPS[0]!.label);
     setExtractedClasses([]);
     setMetadata(null);
 
-    try {
-      setUpload((prev) => (prev ? { ...prev, status: "uploading", progress: 10 } : null));
-      setProgress(10);
+    advanceSteps(0, 6000);
 
+    try {
       const formData = new FormData();
       formData.append("file", file);
 
@@ -47,8 +95,7 @@ export function useUpload() {
         body: formData,
       });
 
-      setUpload((prev) => (prev ? { ...prev, status: "processing", progress: 50 } : null));
-      setProgress(50);
+      clearTimer();
 
       if (!response.ok) {
         const error = await response.json().catch(() => ({ error: "Upload failed" }));
@@ -57,21 +104,26 @@ export function useUpload() {
 
       const data = await response.json();
 
+      setProgress(100);
+      setStepLabel("Done!");
+      setCurrentStep(STEPS.length - 1);
       setExtractedClasses(data.classes || []);
       setMetadata(data.metadata || { confidence: 0 });
-      setUpload((prev) => (prev ? {
+      setUpload((prev) => prev ? {
         ...prev,
         status: "completed",
         progress: 100,
         fileUrl: data.fileUrl,
         id: data.uploadId,
-      } : null));
-      setProgress(100);
+      } : null);
 
       return data;
     } catch (err) {
+      clearTimer();
       const message = err instanceof Error ? err.message : "Upload failed";
-      setUpload((prev) => (prev ? { ...prev, status: "failed", error: message } : null));
+      setUpload((prev) => prev ? { ...prev, status: "failed", error: message, progress: 0 } : null);
+      setStepLabel(null);
+      setProgress(0);
       throw err;
     } finally {
       setIsUploading(false);
@@ -79,9 +131,12 @@ export function useUpload() {
   };
 
   const resetUpload = () => {
+    clearTimer();
     setUpload(null);
     setIsUploading(false);
     setProgress(0);
+    setStepLabel(null);
+    setCurrentStep(0);
     setExtractedClasses([]);
     setMetadata(null);
   };
@@ -114,6 +169,9 @@ export function useUpload() {
     upload,
     isUploading,
     progress,
+    stepLabel,
+    currentStep,
+    totalSteps: STEPS.length,
     uploadFile,
     resetUpload,
     extractedClasses,
