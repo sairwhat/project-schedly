@@ -3,12 +3,10 @@
 import { useState, useEffect } from "react";
 import { Menu } from "lucide-react";
 import { Sidebar } from "@/components/sidebar";
+import { ThemeProvider, useThemeConfig } from "@/features/theme";
 
-export default function DashboardLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+function DashboardShell({ children }: { children: React.ReactNode }) {
+  const { themeVars } = useThemeConfig();
   const [open, setOpen] = useState(true);
   const [showButton, setShowButton] = useState(false);
 
@@ -32,7 +30,7 @@ export default function DashboardLayout({
   ].join(" ");
 
   return (
-    <div className="relative flex h-screen overflow-hidden bg-transparent">
+    <div className="relative flex h-screen overflow-hidden bg-transparent" style={themeVars}>
       <div className={sidebarWrap}>
         <Sidebar onClose={() => setOpen(false)} />
       </div>
@@ -68,5 +66,17 @@ export default function DashboardLayout({
         </main>
       </div>
     </div>
+  );
+}
+
+export default function DashboardLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <ThemeProvider>
+      <DashboardShell>{children}</DashboardShell>
+    </ThemeProvider>
   );
 }

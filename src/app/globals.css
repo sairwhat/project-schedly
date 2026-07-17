@@ -2,8 +2,6 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
-@custom-variant dark (&:is(.dark *));
-
 :root {
   /* Background - very light pink */
   --background: oklch(0.975 0.008 350);
@@ -73,66 +71,6 @@
   --sidebar-primary-foreground: oklch(0.99 0 0);
   --sidebar-accent-foreground: oklch(0.17 0.01 20);
   --sidebar-ring: oklch(0.59 0.22 355);
-}
-
-.dark {
-  /* Background - deep dark pink-black */
-  --background: oklch(0.14 0.015 355);
-  --foreground: oklch(0.94 0.015 355);
-
-  /* Card / Surface */
-  --card: oklch(0.18 0.015 355);
-  --card-foreground: oklch(0.94 0.015 355);
-
-  /* Popover */
-  --popover: oklch(0.18 0.015 355);
-  --popover-foreground: oklch(0.94 0.015 355);
-
-  /* Primary - Lighter Rose for dark bg */
-  --primary: oklch(0.72 0.20 355);
-  --primary-foreground: oklch(0.14 0.015 355);
-
-  /* Secondary */
-  --secondary: oklch(0.22 0.02 355);
-  --secondary-foreground: oklch(0.80 0.08 355);
-
-  /* Muted */
-  --muted: oklch(0.22 0.015 355);
-  --muted-foreground: oklch(0.60 0.03 355);
-
-  /* Accent */
-  --accent: oklch(0.24 0.025 355);
-  --accent-foreground: oklch(0.80 0.08 355);
-
-  /* Destructive */
-  --destructive: oklch(0.65 0.22 25);
-  --destructive-foreground: oklch(0.99 0 0);
-
-  /* Border */
-  --border: oklch(0.28 0.02 355);
-  --input: oklch(0.28 0.02 355);
-
-  /* Ring (focus) */
-  --ring: oklch(0.72 0.20 355);
-
-  /* Chart colors */
-  --chart-1: oklch(0.72 0.20 355);
-  --chart-2: oklch(0.68 0.20 340);
-  --chart-3: oklch(0.62 0.22 300);
-  --chart-4: oklch(0.72 0.14 195);
-  --chart-5: oklch(0.78 0.14 80);
-
-  /* Sidebar */
-  --sidebar: oklch(0.16 0.015 355);
-  --sidebar-foreground: oklch(0.94 0.015 355);
-  --sidebar-accent: oklch(0.22 0.025 355);
-  --sidebar-border: oklch(0.28 0.02 355);
-
-  /* Sidebar extras */
-  --sidebar-primary: oklch(0.72 0.20 355);
-  --sidebar-primary-foreground: oklch(0.14 0.015 355);
-  --sidebar-accent-foreground: oklch(0.94 0.015 355);
-  --sidebar-ring: oklch(0.72 0.20 355);
 }
 
 @theme inline {
