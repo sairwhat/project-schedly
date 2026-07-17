@@ -1,6 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { Capacitor } from "@capacitor/core";
+import { Filesystem, Directory } from "@capacitor/filesystem";
+import { Share } from "@capacitor/share";
 import { useAuth } from "@/features/auth/hooks/use-auth";
 import { getUserSchedules } from "@/app/(dashboard)/schedule/actions";
 import { SchedulePreview } from "@/features/schedule/components/schedule-preview";
@@ -234,12 +237,27 @@ export default function DashboardPage() {
       }
 
       const dataUrl = canvas.toDataURL("image/png");
-      const a = document.createElement("a");
-      a.href = dataUrl;
-      a.download = "schedule.png";
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
+
+      if (Capacitor.isNativePlatform()) {
+        const parts = dataUrl.split(",");
+        const base64 = parts[1] || "";
+        const result = await Filesystem.writeFile({
+          path: "schedule.png",
+          data: base64,
+          directory: Directory.Cache,
+        });
+        await Share.share({
+          title: "Schedule",
+          files: [result.uri],
+        });
+      } else {
+        const a = document.createElement("a");
+        a.href = dataUrl;
+        a.download = "schedule.png";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      }
     } catch (err) {
       console.error("Download failed", err);
       alert("Failed to download image. Please try again.");
