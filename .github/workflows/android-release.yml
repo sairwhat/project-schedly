@@ -1,0 +1,266 @@
+name: Android Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      versionName:
+        description: 'Version name (e.g., 1.3)'
+        required: true
+        type: string
+
+concurrency:
+  group: release-${{ github.ref_name || github.run_id }}
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: "20"
+  JAVA_VERSION: "21"
+  KEYSTORE_PATH: ${{ github.workspace }}/release-keystore.jks
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and Publish Release
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      version_name: ${{ steps.version.outputs.VERSION_NAME }}
+      version_code: ${{ steps.version.outputs.VERSION_CODE }}
+      tag_name: ${{ steps.version.outputs.TAG_NAME }}
+      apk_filename: ${{ steps.version.outputs.APK_FILENAME }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine version
+        id: version
+        run: |
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            # Tag push: extract version from tag (e.g., v1.3 → 1.3)
+            TAG_NAME="${{ github.ref_name }}"
+            VERSION_NAME="${TAG_NAME#v}"
+          else
+            # Manual trigger: use provided version
+            VERSION_NAME="${{ inputs.versionName }}"
+            TAG_NAME="v${VERSION_NAME}"
+          fi
+
+          # Derive versionCode from versionName (e.g., 1.3 → 13)
+          VERSION_CODE=$(echo "$VERSION_NAME" | sed 's/\.//g')
+
+          APK_FILENAME="Schedly-${VERSION_NAME}-release.apk"
+
+          echo "VERSION_NAME=${VERSION_NAME}" >> "$GITHUB_OUTPUT"
+          echo "VERSION_CODE=${VERSION_CODE}" >> "$GITHUB_OUTPUT"
+          echo "TAG_NAME=${TAG_NAME}" >> "$GITHUB_OUTPUT"
+          echo "APK_FILENAME=${APK_FILENAME}" >> "$GITHUB_OUTPUT"
+          echo "APK_URL=https://github.com/${{ github.repository }}/releases/download/${TAG_NAME}/${APK_FILENAME}" >> "$GITHUB_OUTPUT"
+
+      - name: Print version info
+        run: |
+          echo "Release: v${{ steps.version.outputs.VERSION_NAME }}"
+          echo "Version Code: ${{ steps.version.outputs.VERSION_CODE }}"
+          echo "Tag: ${{ steps.version.outputs.TAG_NAME }}"
+          echo "APK: ${{ steps.version.outputs.APK_FILENAME }}"
+
+      - name: Setup Java ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - name: Setup Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Next.js
+        run: npm run build
+        env:
+          NEXT_PUBLIC_APP_URL: ${{ vars.NEXT_PUBLIC_APP_URL || 'https://app.schedly.shop' }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL || 'postgresql://localhost:5432/schedly' }}
+
+      - name: Sync Capacitor
+        run: npx cap sync android
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-release-${{ hashFiles('android/**/*.gradle*', 'android/gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-release-
+
+      - name: Update version files
+        run: |
+          bash scripts/update-versions.sh \
+            "${{ steps.version.outputs.VERSION_NAME }}" \
+            "${{ steps.version.outputs.VERSION_CODE }}" \
+            "${{ steps.version.outputs.APK_URL }}"
+
+      - name: Show updated files
+        run: |
+          echo "=== android/app/build.gradle ==="
+          grep -A2 -B2 "versionCode\|versionName" android/app/build.gradle
+          echo ""
+          echo "=== version.json ==="
+          cat version.json
+
+      - name: Build Android Release APK
+        run: |
+          cd android
+          chmod +x gradlew
+          # Override Windows JDK path from gradle.properties for CI
+          ./gradlew assembleRelease --stacktrace \
+            -Dorg.gradle.java.home=$JAVA_HOME
+
+      - name: Verify APK
+        run: |
+          APK="android/app/build/outputs/apk/release/app-release-unsigned.apk"
+          if [ -f "$APK" ]; then
+            echo "✅ APK generated"
+            ls -lh "$APK"
+          else
+            echo "❌ APK not found"
+            exit 1
+          fi
+
+      - name: Setup keystore
+        run: |
+          if [ -n "${{ secrets.KEYSTORE_BASE64 }}" ]; then
+            echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > "${{ env.KEYSTORE_PATH }}"
+            echo "✅ Keystore decoded from secret"
+          else
+            echo "⚠️ No KEYSTORE_BASE64 secret found. Generating debug keystore..."
+            keytool -genkey -v \
+              -keystore "${{ env.KEYSTORE_PATH }}" \
+              -alias androiddebugkey \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000 \
+              -storepass android \
+              -keypass android \
+              -dname "CN=Debug, OU=Debug, O=Debug, L=Debug, S=Debug, C=US"
+            echo "✅ Debug keystore generated"
+          fi
+
+      - name: Sign APK
+        run: |
+          UNSIGNED_APK="android/app/build/outputs/apk/release/app-release-unsigned.apk"
+          SIGNED_APK="${{ steps.version.outputs.APK_FILENAME }}"
+
+          ANDROID_HOME="$ANDROID_SDK_ROOT"
+          BUILD_TOOLS_DIR=$(ls -d "$ANDROID_HOME/build-tools/"*/ | sort -V | tail -1)
+
+          if [ -z "$BUILD_TOOLS_DIR" ]; then
+            echo "❌ No build tools found at $ANDROID_HOME/build-tools/"
+            exit 1
+          fi
+
+          APKSIGNER="${BUILD_TOOLS_DIR}apksigner"
+
+          if [ -n "${{ secrets.KEYSTORE_BASE64 }}" ]; then
+            "$APKSIGNER" sign \
+              --ks "${{ env.KEYSTORE_PATH }}" \
+              --ks-pass "pass:${{ secrets.KEYSTORE_PASSWORD }}" \
+              --ks-key-alias "${{ secrets.KEY_ALIAS }}" \
+              --key-pass "pass:${{ secrets.KEY_PASSWORD }}" \
+              --out "$SIGNED_APK" \
+              "$UNSIGNED_APK"
+          else
+            "$APKSIGNER" sign \
+              --ks "${{ env.KEYSTORE_PATH }}" \
+              --ks-key-alias androiddebugkey \
+              --ks-pass pass:android \
+              --key-pass pass:android \
+              --out "$SIGNED_APK" \
+              "$UNSIGNED_APK"
+          fi
+
+          echo "✅ APK signed: $SIGNED_APK"
+          ls -lh "$SIGNED_APK"
+
+      - name: Verify signature
+        run: |
+          APKSIGNER=$(ls -d "$ANDROID_HOME/build-tools/"*/apksigner | sort -V | tail -1)
+          "$APKSIGNER" verify "${{ steps.version.outputs.APK_FILENAME }}"
+          echo "✅ APK signature verified"
+
+      - name: Generate release notes
+        id: notes
+        run: |
+          PREVIOUS_TAG=$(git tag --sort=-version:refname | head -2 | tail -1 || echo "")
+          cat > release-notes.md << EOF
+          ## Schedly v${{ steps.version.outputs.VERSION_NAME }}
+
+          ### Installation
+          1. Download the APK attached to this release
+          2. Open the file on your Android device
+          3. Allow installation from unknown sources if prompted
+          4. Launch the app — the in-app updater will also detect this version
+
+          ### Changelog
+          $(if [ -n "$PREVIOUS_TAG" ]; then
+            echo "\`\`\`"
+            git log --oneline --no-decorate "${PREVIOUS_TAG}..HEAD" 2>/dev/null || echo "No previous tag found"
+            echo "\`\`\`"
+          else
+            echo "Initial release."
+          fi)
+          EOF
+          echo "Release notes generated"
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ -f "release-notes.md" ]; then
+            NOTES_PATH="release-notes.md"
+          else
+            NOTES_PATH="/dev/null"
+          fi
+
+          if gh release view "${{ steps.version.outputs.TAG_NAME }}" &>/dev/null; then
+            echo "Release ${{ steps.version.outputs.TAG_NAME }} already exists. Uploading asset to existing release."
+            gh release upload "${{ steps.version.outputs.TAG_NAME }}" \
+              "${{ steps.version.outputs.APK_FILENAME }}" \
+              --clobber
+          else
+            echo "Creating new release ${{ steps.version.outputs.TAG_NAME }}"
+            gh release create "${{ steps.version.outputs.TAG_NAME }}" \
+              --title "Schedly v${{ steps.version.outputs.VERSION_NAME }}" \
+              --notes-file "$NOTES_PATH" \
+              "${{ steps.version.outputs.APK_FILENAME }}"
+          fi
+
+      - name: Upload APK Artifact (backup)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.version.outputs.APK_FILENAME }}
+          path: ${{ steps.version.outputs.APK_FILENAME }}
+          retention-days: 90
+
+      - name: Commit updated version files
+        run: |
+          git config user.name "Schedly Release Bot"
+          git config user.email "bot@schedly.app"
+          git add android/app/build.gradle version.json
+          git commit -m "chore: bump version to ${{ steps.version.outputs.VERSION_NAME }} [skip ci]" || echo "No changes to commit"
+          git push origin HEAD:main
