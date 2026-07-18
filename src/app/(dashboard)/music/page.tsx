@@ -22,14 +22,13 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-interface Song {
+interface SongMeta {
   id: string;
   name: string;
   artist: string;
   album: string;
-  mimeType: string;
   duration: number;
-  data: ArrayBuffer;
+  size: number;
   addedAt: number;
 }
 
@@ -52,41 +51,17 @@ function openDB(): Promise<IDBDatabase> {
   });
 }
 
-async function loadSongsFromDB(): Promise<Song[]> {
+function loadAll(): Promise<SongMeta[]> {
   try {
-    const db = await openDB();
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction(STORE_NAME, "readonly");
-      const store = tx.objectStore(STORE_NAME);
-      const req = store.getAll();
-      req.onsuccess = () => resolve(req.result);
-      req.onerror = () => reject(req.error);
-    });
+    const raw = localStorage.getItem("schedly-music-meta");
+    return Promise.resolve(raw ? JSON.parse(raw) : []);
   } catch {
-    return [];
+    return Promise.resolve([]);
   }
 }
 
-async function saveSongToDB(song: Song): Promise<void> {
-  const db = await openDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, "readwrite");
-    const store = tx.objectStore(STORE_NAME);
-    store.put(song);
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-  });
-}
-
-async function deleteSongFromDB(id: string): Promise<void> {
-  const db = await openDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, "readwrite");
-    const store = tx.objectStore(STORE_NAME);
-    store.delete(id);
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-  });
+function saveAll(meta: SongMeta[]) {
+  localStorage.setItem("schedly-music-meta", JSON.stringify(meta));
 }
 
 function formatTime(seconds: number): string {
@@ -130,8 +105,8 @@ function formatFileSize(bytes: number): string {
 }
 
 export default function MusicPage() {
-  const [songs, setSongs] = useState<Song[]>([]);
-  const [currentIndex, setCurrentIndex] = useState(-1);
+  const [songs, setSongs] = useState<SongMeta[]>([]);
+  const [currentId, setCurrentId] = useState<string | null>(null);
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -145,53 +120,59 @@ export default function MusicPage() {
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const objectUrlsRef = useRef<Map<string, string>>(new Map());
-  const songsRef = useRef<Song[]>([]);
-  const currentIndexRef = useRef(-1);
+  const fileMapRef = useRef<Map<string, File>>(new Map());
+  const blobUrlsRef = useRef<Map<string, string>>(new Map());
+  const songsRef = useRef<SongMeta[]>([]);
+  const currentIdRef = useRef<string | null>(null);
   const repeatModeRef = useRef<RepeatMode>("off");
   const shuffledRef = useRef(false);
 
   songsRef.current = songs;
-  currentIndexRef.current = currentIndex;
+  currentIdRef.current = currentId;
   repeatModeRef.current = repeatMode;
   shuffledRef.current = shuffled;
 
   // Init audio element once
   useEffect(() => {
-    if (!audioRef.current) {
-      audioRef.current = new Audio();
-    }
-    const audio = audioRef.current;
+    const audio = new Audio();
+    audioRef.current = audio;
 
     const onTimeUpdate = () => setCurrentTime(audio.currentTime);
     const onDurationChange = () => setDuration(audio.duration || 0);
     const onPlay = () => setPlaying(true);
     const onPause = () => setPlaying(false);
+    const onError = () => {
+      console.error("Audio error:", audio.error?.message || "unknown");
+      setPlaying(false);
+    };
     const onEnded = () => {
       const mode = repeatModeRef.current;
       if (mode === "one") {
         audio.currentTime = 0;
         audio.play().catch(() => {});
+        return;
+      }
+      const list = songsRef.current;
+      if (list.length === 0) return;
+      const currId = currentIdRef.current;
+      const idx = list.findIndex((s) => s.id === currId);
+      if (idx < 0) return;
+
+      if (shuffledRef.current) {
+        const next = Math.floor(Math.random() * list.length);
+        playFile(list[next]!.id);
       } else {
-        const idx = currentIndexRef.current;
-        const list = songsRef.current;
-        if (list.length === 0) return;
-        if (shuffledRef.current) {
-          const next = Math.floor(Math.random() * list.length);
-          playByIndex(next);
-        } else {
-          const next = idx + 1;
-          if (next >= list.length) {
-            if (mode === "all") {
-              playByIndex(0);
-            } else {
-              setCurrentIndex(-1);
-              setPlaying(false);
-              audio.src = "";
-            }
+        const next = idx + 1;
+        if (next >= list.length) {
+          if (mode === "all") {
+            playFile(list[0]!.id);
           } else {
-            playByIndex(next);
+            setCurrentId(null);
+            setPlaying(false);
+            audio.src = "";
           }
+        } else {
+          playFile(list[next]!.id);
         }
       }
     };
@@ -201,6 +182,7 @@ export default function MusicPage() {
     audio.addEventListener("ended", onEnded);
     audio.addEventListener("play", onPlay);
     audio.addEventListener("pause", onPause);
+    audio.addEventListener("error", onError);
 
     return () => {
       audio.removeEventListener("timeupdate", onTimeUpdate);
@@ -208,6 +190,11 @@ export default function MusicPage() {
       audio.removeEventListener("ended", onEnded);
       audio.removeEventListener("play", onPlay);
       audio.removeEventListener("pause", onPause);
+      audio.removeEventListener("error", onError);
+      audio.pause();
+      audio.src = "";
+      blobUrlsRef.current.forEach((u) => URL.revokeObjectURL(u));
+      blobUrlsRef.current.clear();
     };
   }, []);
 
@@ -218,119 +205,179 @@ export default function MusicPage() {
   }, [volume, muted]);
 
   useEffect(() => {
-    loadSongsFromDB().then((saved) => {
-      setSongs(saved);
+    loadAll().then((meta) => {
+      setSongs(meta);
       setLoaded(true);
     });
   }, []);
 
-  const getUrl = useCallback((song: Song): string => {
-    const map = objectUrlsRef.current;
-    let url = map.get(song.id);
-    if (!url) {
-      const blob = new Blob([song.data], { type: song.mimeType || "audio/mpeg" });
-      url = URL.createObjectURL(blob);
-      map.set(song.id, url);
+  function playFile(id: string) {
+    const file = fileMapRef.current.get(id);
+    if (!file) {
+      console.error("File not found for id:", id);
+      return;
     }
-    return url;
-  }, []);
-
-  const playByIndex = useCallback((index: number) => {
-    const list = songsRef.current;
-    if (index < 0 || index >= list.length) return;
-    const song = list[index]!;
-    setCurrentIndex(index);
     const audio = audioRef.current;
     if (!audio) return;
-    audio.src = getUrl(song);
-    audio.currentTime = 0;
-    audio.play().catch(() => setPlaying(false));
-  }, [getUrl]);
 
-  const handleSongClick = useCallback((index: number) => {
-    if (index === currentIndexRef.current) {
+    const existing = blobUrlsRef.current.get(id);
+    if (existing) {
+      URL.revokeObjectURL(existing);
+    }
+    const url = URL.createObjectURL(file);
+    blobUrlsRef.current.set(id, url);
+
+    setCurrentId(id);
+    audio.src = url;
+    audio.currentTime = 0;
+    audio.play().catch((err) => {
+      console.error("Play failed:", err);
+      setPlaying(false);
+    });
+  }
+
+  function handleSongClick(id: string) {
+    if (id === currentIdRef.current) {
       const audio = audioRef.current;
       if (!audio) return;
       if (audio.paused) {
-        audio.play().catch(() => setPlaying(false));
+        audio.play().catch((err) => {
+          console.error("Play failed:", err);
+          setPlaying(false);
+        });
       } else {
         audio.pause();
       }
     } else {
-      playByIndex(index);
+      playFile(id);
     }
-  }, [playByIndex]);
+  }
 
-  const togglePlay = useCallback(() => {
+  function togglePlay() {
     const audio = audioRef.current;
     if (!audio) return;
-    if (currentIndexRef.current < 0 && songsRef.current.length > 0) {
-      playByIndex(0);
+    if (!currentIdRef.current && songsRef.current.length > 0) {
+      playFile(songsRef.current[0]!.id);
       return;
     }
     if (audio.paused) {
-      audio.play().catch(() => setPlaying(false));
+      audio.play().catch((err) => {
+        console.error("Play failed:", err);
+        setPlaying(false);
+      });
     } else {
       audio.pause();
     }
-  }, [playByIndex]);
+  }
 
-  const seek = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+  function seek(e: React.ChangeEvent<HTMLInputElement>) {
     const time = Number(e.target.value);
     setCurrentTime(time);
     if (audioRef.current) {
       audioRef.current.currentTime = time;
     }
-  }, []);
+  }
 
-  const handleUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+  function prevSong() {
+    const list = songsRef.current;
+    if (list.length === 0) return;
+    const audio = audioRef.current;
+    if (audio && audio.currentTime > 3) {
+      audio.currentTime = 0;
+      return;
+    }
+    const currId = currentIdRef.current;
+    const idx = list.findIndex((s) => s.id === currId);
+    if (shuffledRef.current) {
+      playFile(list[Math.floor(Math.random() * list.length)]!.id);
+    } else {
+      const prev = idx - 1;
+      if (prev < 0) {
+        if (repeatModeRef.current === "all") {
+          playFile(list[list.length - 1]!.id);
+        }
+      } else {
+        playFile(list[prev]!.id);
+      }
+    }
+  }
+
+  function nextSong() {
+    const list = songsRef.current;
+    if (list.length === 0) return;
+    const currId = currentIdRef.current;
+    const idx = list.findIndex((s) => s.id === currId);
+    if (shuffledRef.current) {
+      playFile(list[Math.floor(Math.random() * list.length)]!.id);
+    } else {
+      const next = idx + 1;
+      if (next >= list.length) {
+        if (repeatModeRef.current === "all") {
+          playFile(list[0]!.id);
+        }
+      } else {
+        playFile(list[next]!.id);
+      }
+    }
+  }
+
+  async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const files = e.target.files;
     if (!files) return;
-    const newSongs: Song[] = [];
+
+    const newMeta: SongMeta[] = [];
+
     for (let i = 0; i < files.length; i++) {
       const file = files[i]!;
       if (!file.type.startsWith("audio/")) continue;
-      const buffer = await file.arrayBuffer();
+
+      const id = crypto.randomUUID();
       const name = file.name.replace(/\.[^/.]+$/, "");
-      const song: Song = {
-        id: crypto.randomUUID(),
+
+      fileMapRef.current.set(id, file);
+
+      newMeta.push({
+        id,
         name,
         artist: "Unknown Artist",
         album: "Unknown Album",
-        mimeType: file.type || "audio/mpeg",
         duration: 0,
-        data: buffer,
+        size: file.size,
         addedAt: Date.now(),
-      };
-      await saveSongToDB(song);
-      newSongs.push(song);
+      });
     }
-    setSongs((prev) => [...prev, ...newSongs]);
+
+    const updated = [...songs, ...newMeta];
+    setSongs(updated);
+    saveAll(updated);
+
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
-  }, []);
+  }
 
-  const handleDelete = useCallback(async (id: string, e: React.MouseEvent) => {
+  async function handleDelete(id: string, e: React.MouseEvent) {
     e.stopPropagation();
-    const url = objectUrlsRef.current.get(id);
-    if (url) {
-      URL.revokeObjectURL(url);
-      objectUrlsRef.current.delete(id);
+    fileMapRef.current.delete(id);
+    const existing = blobUrlsRef.current.get(id);
+    if (existing) {
+      URL.revokeObjectURL(existing);
+      blobUrlsRef.current.delete(id);
     }
-    await deleteSongFromDB(id);
-    setSongs((prev) => prev.filter((s) => s.id !== id));
-    if (currentIndexRef.current >= 0 && songsRef.current[currentIndexRef.current]?.id === id) {
-      setCurrentIndex(-1);
+    const updated = songs.filter((s) => s.id !== id);
+    setSongs(updated);
+    saveAll(updated);
+    if (currentIdRef.current === id) {
+      setCurrentId(null);
       setPlaying(false);
       if (audioRef.current) {
         audioRef.current.pause();
         audioRef.current.src = "";
       }
     }
-  }, []);
+  }
 
-  const currentSong = currentIndex >= 0 ? songs[currentIndex] : null;
+  const currentSong = songs.find((s) => s.id === currentId) || null;
   const filteredSongs = songs.filter(
     (s) =>
       s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -413,12 +460,11 @@ export default function MusicPage() {
         ) : (
           <div className="flex-1 space-y-1 overflow-y-auto rounded-2xl border border-border/50 bg-card/50 p-2">
             {filteredSongs.map((song) => {
-              const realIdx = songs.indexOf(song);
-              const isActive = realIdx === currentIndex;
+              const isActive = song.id === currentId;
               return (
                 <div
                   key={song.id}
-                  onClick={() => handleSongClick(realIdx)}
+                  onClick={() => handleSongClick(song.id)}
                   className={cn(
                     "group flex cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 transition-colors",
                     isActive
@@ -454,7 +500,7 @@ export default function MusicPage() {
                     </p>
                   </div>
                   <span className="shrink-0 text-xs text-muted-foreground">
-                    {formatFileSize(song.data.byteLength)}
+                    {formatFileSize(song.size)}
                   </span>
                   <button
                     onClick={(e) => handleDelete(song.id, e)}
@@ -537,27 +583,7 @@ export default function MusicPage() {
                   <Shuffle className="h-5 w-5" />
                 </button>
                 <button
-                  onClick={() => {
-                    const idx = currentIndexRef.current;
-                    const list = songsRef.current;
-                    if (list.length === 0) return;
-                    if (audioRef.current && audioRef.current.currentTime > 3) {
-                      audioRef.current.currentTime = 0;
-                      return;
-                    }
-                    if (shuffledRef.current) {
-                      playByIndex(Math.floor(Math.random() * list.length));
-                    } else {
-                      const prev = idx - 1;
-                      if (prev < 0) {
-                        if (repeatModeRef.current === "all") {
-                          playByIndex(list.length - 1);
-                        }
-                      } else {
-                        playByIndex(prev);
-                      }
-                    }
-                  }}
+                  onClick={prevSong}
                   className="rounded-full p-2 text-muted-foreground transition-colors hover:text-foreground"
                 >
                   <SkipBack className="h-6 w-6" />
@@ -573,22 +599,7 @@ export default function MusicPage() {
                   )}
                 </button>
                 <button
-                  onClick={() => {
-                    const list = songsRef.current;
-                    if (list.length === 0) return;
-                    if (shuffledRef.current) {
-                      playByIndex(Math.floor(Math.random() * list.length));
-                    } else {
-                      const next = currentIndexRef.current + 1;
-                      if (next >= list.length) {
-                        if (repeatModeRef.current === "all") {
-                          playByIndex(0);
-                        }
-                      } else {
-                        playByIndex(next);
-                      }
-                    }
-                  }}
+                  onClick={nextSong}
                   className="rounded-full p-2 text-muted-foreground transition-colors hover:text-foreground"
                 >
                   <SkipForward className="h-6 w-6" />
@@ -681,27 +692,7 @@ export default function MusicPage() {
               </div>
               <div className="flex items-center gap-1">
                 <button
-                  onClick={() => {
-                    const idx = currentIndexRef.current;
-                    const list = songsRef.current;
-                    if (list.length === 0) return;
-                    if (audioRef.current && audioRef.current.currentTime > 3) {
-                      audioRef.current.currentTime = 0;
-                      return;
-                    }
-                    if (shuffledRef.current) {
-                      playByIndex(Math.floor(Math.random() * list.length));
-                    } else {
-                      const prev = idx - 1;
-                      if (prev < 0) {
-                        if (repeatModeRef.current === "all") {
-                          playByIndex(list.length - 1);
-                        }
-                      } else {
-                        playByIndex(prev);
-                      }
-                    }
-                  }}
+                  onClick={prevSong}
                   className="rounded-full p-2 text-muted-foreground transition-colors hover:text-foreground"
                 >
                   <SkipBack className="h-5 w-5" />
@@ -717,22 +708,7 @@ export default function MusicPage() {
                   )}
                 </button>
                 <button
-                  onClick={() => {
-                    const list = songsRef.current;
-                    if (list.length === 0) return;
-                    if (shuffledRef.current) {
-                      playByIndex(Math.floor(Math.random() * list.length));
-                    } else {
-                      const next = currentIndexRef.current + 1;
-                      if (next >= list.length) {
-                        if (repeatModeRef.current === "all") {
-                          playByIndex(0);
-                        }
-                      } else {
-                        playByIndex(next);
-                      }
-                    }
-                  }}
+                  onClick={nextSong}
                   className="rounded-full p-2 text-muted-foreground transition-colors hover:text-foreground"
                 >
                   <SkipForward className="h-5 w-5" />
