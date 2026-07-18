@@ -2,7 +2,6 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useAuth } from "@/features/auth/hooks/use-auth";
-import { upload } from "@vercel/blob/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -101,34 +100,48 @@ export default function AdminApkPage() {
     pushLog("info", `Preparing release v${cleanVersion}...`);
     pushLog("info", `File: ${selectedFile.name} (${(selectedFile.size / 1024 / 1024).toFixed(2)} MB)`);
     try {
-      const apkKey = `releases/Schedly-${cleanVersion.replace(/^v/i, "").trim()}-release.apk`;
-      const clientPayload = JSON.stringify({
-        versionName: cleanVersion,
-        updateMessage: updateMessage || `New version ${cleanVersion} is now available.`,
-      });
+      const form = new FormData();
+      form.append("file", selectedFile);
+      form.append("versionName", cleanVersion);
+      form.append("updateMessage", updateMessage);
 
-      pushLog("info", "Requesting upload token from server...");
-      const blob = await upload(apkKey, selectedFile, {
-        access: "public",
-        handleUploadUrl: "/api/admin/apk-token",
-        clientPayload,
-        onUploadProgress: ({ percentage }) => {
-          const pct = Math.round(percentage);
-          if (pct % 10 === 0 || pct === 100) {
-            pushLog("info", `Uploading... ${pct}%`);
-          }
-        },
-      });
+      pushLog("info", "Uploading to Blob via server...");
+      const result = await new Promise<{ ok: boolean; url?: string; error?: string }>(
+        (resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          xhr.open("POST", "/api/admin/apk-upload");
+          xhr.upload.onprogress = (e) => {
+            if (e.lengthComputable) {
+              const p = Math.round((e.loaded / e.total) * 100);
+              pushLog("info", `Uploading... ${p}%`);
+            }
+          };
+          xhr.onload = () => {
+            try {
+              const body = JSON.parse(xhr.responseText);
+              if (xhr.status >= 200 && xhr.status < 300 && body.ok) {
+                resolve(body);
+              } else {
+                reject(new Error(body.error || `Server error ${xhr.status}`));
+              }
+            } catch {
+              reject(new Error(`Server error ${xhr.status}`));
+            }
+          };
+          xhr.onerror = () => reject(new Error("Network error during upload."));
+          xhr.send(form);
+        }
+      );
 
       pushLog("ok", "APK uploaded to Blob storage.");
-      pushLog("info", "Server writing releases/version.json...");
+      pushLog("ok", "Server wrote releases/version.json.");
       pushLog("ok", `Published v${cleanVersion} successfully.`);
-      pushLog("ok", `APK URL: ${blob.url}`);
+      pushLog("ok", `APK URL: ${result.url}`);
 
       setMessage({ type: "ok", text: `Published v${cleanVersion} successfully.` });
       setCurrent({
         versionName: cleanVersion.replace(/^v/i, "").trim(),
-        apkUrl: blob.url,
+        apkUrl: result.url,
       });
       setFile(null);
       setVersionName("");
