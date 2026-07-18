@@ -5,6 +5,7 @@ import android.content.DialogInterface
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
+import android.util.Log
 import androidx.core.content.FileProvider
 import com.getcapacitor.JSObject
 import com.getcapacitor.Plugin
@@ -22,28 +23,42 @@ class InAppUpdate : Plugin() {
 
     override fun load() {
         super.load()
+        Log.d("InAppUpdate", "load() called")
         val versionUrl = config.getString("versionUrl")
+        Log.d("InAppUpdate", "versionUrl from config: $versionUrl")
         if (versionUrl != null) {
             checkForUpdateOnStartup(versionUrl)
+        } else {
+            Log.e("InAppUpdate", "versionUrl is null — check capacitor.config.ts plugin config")
         }
     }
 
     private fun checkForUpdateOnStartup(versionUrl: String) {
         Thread {
             try {
+                Log.d("InAppUpdate", "Fetching version.json from: $versionUrl")
                 val conn = URL(versionUrl).openConnection() as HttpURLConnection
                 conn.connectTimeout = 10000
                 conn.readTimeout = 10000
                 conn.requestMethod = "GET"
+                val responseCode = conn.responseCode
+                Log.d("InAppUpdate", "HTTP response code: $responseCode")
+
+                if (responseCode != 200) {
+                    Log.e("InAppUpdate", "Failed to fetch version.json, HTTP $responseCode")
+                    return@Thread
+                }
 
                 val response = conn.inputStream.bufferedReader().readText()
                 conn.disconnect()
+                Log.d("InAppUpdate", "version.json response: $response")
 
                 val remoteJson = JSONObject(response)
                 val remoteVersionCode = remoteJson.getInt("versionCode")
                 val remoteVersionName = remoteJson.getString("versionName")
                 val apkUrl = remoteJson.getString("apkUrl")
                 val updateMessage = remoteJson.optString("updateMessage", "New version available")
+                Log.d("InAppUpdate", "Remote: v$remoteVersionName (code=$remoteVersionCode)")
 
                 val pkgInfo = context.packageManager.getPackageInfo(context.packageName, 0)
                 val currentVersionCode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
@@ -52,16 +67,23 @@ class InAppUpdate : Plugin() {
                     @Suppress("DEPRECATION")
                     pkgInfo.versionCode
                 }
+                Log.d("InAppUpdate", "Local version code: $currentVersionCode")
 
                 if (remoteVersionCode > currentVersionCode) {
+                    Log.d("InAppUpdate", "Update available! Showing dialog...")
                     val activity = activity
                     if (activity != null) {
                         activity.runOnUiThread {
                             showUpdateDialog(remoteVersionName, updateMessage, apkUrl)
                         }
+                    } else {
+                        Log.e("InAppUpdate", "Activity is null, cannot show dialog")
                     }
+                } else {
+                    Log.d("InAppUpdate", "No update needed (local=$currentVersionCode >= remote=$remoteVersionCode)")
                 }
-            } catch (_: Exception) {
+            } catch (e: Exception) {
+                Log.e("InAppUpdate", "Error in checkForUpdateOnStartup: ${e.message}", e)
             }
         }.start()
     }
@@ -86,6 +108,7 @@ class InAppUpdate : Plugin() {
                 val downloadDir = context.cacheDir
                 val apkFile = File(downloadDir, fileName)
 
+                Log.d("InAppUpdate", "Downloading APK from: $apkUrl")
                 val conn = URL(apkUrl).openConnection() as HttpURLConnection
                 conn.connectTimeout = 30000
                 conn.readTimeout = 30000
@@ -95,12 +118,15 @@ class InAppUpdate : Plugin() {
                 val outputStream = FileOutputStream(apkFile)
                 val buffer = ByteArray(8192)
                 var bytesRead: Int
+                var totalBytes = 0
                 while (inputStream.read(buffer).also { bytesRead = it } != -1) {
                     outputStream.write(buffer, 0, bytesRead)
+                    totalBytes += bytesRead
                 }
                 outputStream.close()
                 inputStream.close()
                 conn.disconnect()
+                Log.d("InAppUpdate", "Downloaded $totalBytes bytes to ${apkFile.absolutePath}")
 
                 val activity = activity
                 if (activity != null) {
@@ -110,6 +136,7 @@ class InAppUpdate : Plugin() {
                             "${context.packageName}.fileprovider",
                             apkFile
                         )
+                        Log.d("InAppUpdate", "Launching installer for URI: $apkUri")
                         val intent = Intent(Intent.ACTION_VIEW).apply {
                             setDataAndType(apkUri, "application/vnd.android.package-archive")
                             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
@@ -117,8 +144,11 @@ class InAppUpdate : Plugin() {
                         }
                         activity.startActivity(intent)
                     }
+                } else {
+                    Log.e("InAppUpdate", "Activity is null, cannot launch installer")
                 }
-            } catch (_: Exception) {
+            } catch (e: Exception) {
+                Log.e("InAppUpdate", "Error downloading APK: ${e.message}", e)
             }
         }.start()
     }
