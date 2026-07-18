@@ -6,7 +6,7 @@ import { InAppUpdate } from "@/lib/capacitor-plugins/in-app-update";
 import type { UpdateInfo } from "@/lib/capacitor-plugins/in-app-update";
 
 const VERSION_URL =
-  "https://raw.githubusercontent.com/sairwhat/project-schedly/main/version.json";
+  "https://raw.githubusercontent.com/sairwhat/project-schedly/master/version.json";
 
 export function useUpdateChecker() {
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);

@@ -183,6 +183,47 @@ export default function MusicPage() {
 
   const currentSong = currentIndex >= 0 ? songs[currentIndex] : null;
 
+  useEffect(() => {
+    if (typeof navigator === "undefined" || !("mediaSession" in navigator)) return;
+    const ms = navigator.mediaSession;
+
+    if (!currentSong) {
+      try {
+        ms.metadata = null;
+        ms.playbackState = "none";
+      } catch {}
+      return;
+    }
+
+    try {
+      ms.metadata = new MediaMetadata({
+        title: currentSong.title,
+        artist: currentSong.artist,
+        album: currentSong.album || "Schedly Music",
+      });
+      ms.playbackState = playing ? "playing" : "paused";
+    } catch {}
+
+    const setHandler = (action: MediaSessionAction, handler: (() => void) | null) => {
+      try {
+        ms.setActionHandler(action, handler);
+      } catch {}
+    };
+
+    setHandler("play", () => togglePlay());
+    setHandler("pause", () => togglePlay());
+    setHandler("previoustrack", () => prevTrack());
+    setHandler("nexttrack", () => nextTrack());
+
+    return () => {
+      setHandler("play", null);
+      setHandler("pause", null);
+      setHandler("previoustrack", null);
+      setHandler("nexttrack", null);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentSong, playing, songs, shuffle, repeat]);
+
   function playSong(index: number) {
     if (index < 0 || index >= songs.length) return;
     if (index === currentIndex && playing) return;

@@ -263,4 +263,4 @@ jobs:
           git config user.email "bot@schedly.app"
           git add android/app/build.gradle version.json
           git commit -m "chore: bump version to ${{ steps.version.outputs.VERSION_NAME }} [skip ci]" || echo "No changes to commit"
-          git push origin HEAD:main
+          git push origin HEAD:master
