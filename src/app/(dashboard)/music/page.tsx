@@ -27,6 +27,7 @@ interface Song {
   name: string;
   artist: string;
   album: string;
+  mimeType: string;
   duration: number;
   data: ArrayBuffer;
   addedAt: number;
@@ -202,7 +203,7 @@ export default function MusicPage() {
         const key = song.id;
         let url = objectUrls.get(key);
         if (!url) {
-          const blob = new Blob([song.data], { type: "audio/mpeg" });
+          const blob = new Blob([song.data], { type: song.mimeType || "audio/mpeg" });
           url = URL.createObjectURL(blob);
           setObjectUrls((prev) => new Map(prev).set(key, url!));
         }
@@ -302,6 +303,7 @@ export default function MusicPage() {
           name: name,
           artist: "Unknown Artist",
           album: "Unknown Album",
+          mimeType: file.type || "audio/mpeg",
           duration: 0,
           data: buffer,
           addedAt: Date.now(),
