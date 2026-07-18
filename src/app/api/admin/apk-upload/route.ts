@@ -61,10 +61,12 @@ export async function POST(request: NextRequest) {
       contentType: "application/vnd.android.package-archive",
     });
 
+    const proxyUrl = `https://app.schedly.shop/api/admin/apk-download?v=${clean}`;
+
     const versionInfo = {
       versionCode: computeCode(clean),
       versionName: clean,
-      apkUrl: blob.url,
+      apkUrl: proxyUrl,
       updateMessage,
     };
 
