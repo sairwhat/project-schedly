@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { Capacitor, registerPlugin } from "@capacitor/core";
-import html2canvas from "html2canvas";
+import html2canvas from "html2canvas-pro";
 import { useAuth } from "@/features/auth/hooks/use-auth";
 import { getUserSchedules } from "@/app/(dashboard)/schedule/actions";
 import { SchedulePreview } from "@/features/schedule/components/schedule-preview";
@@ -134,10 +134,12 @@ export default function DashboardPage() {
     setDownloading(true);
     try {
       const canvas = await html2canvas(node, {
-        backgroundColor: null,
+        backgroundColor: "#ffffff",
         scale: 2,
         useCORS: true,
         logging: false,
+        windowWidth: node.scrollWidth,
+        windowHeight: node.scrollHeight,
       });
 
       const radius = 24;
