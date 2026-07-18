@@ -61,13 +61,18 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
           ].join(" ")}
         >
           <div className="mx-auto w-[90%] max-w-3xl md:w-full">
-            <div className="mb-5 mt-2 flex items-center">
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="mb-5 mt-2 flex items-center"
+              aria-label="Refresh page"
+            >
               <img
                 src="/images/logo.jpg"
                 alt="Schedly"
                 className="h-9 w-9 rounded-xl object-cover"
               />
-            </div>
+            </button>
             <div className="grid min-h-[calc(100vh-7rem)] w-full place-items-center">
               <div className="w-full">{children}</div>
             </div>
