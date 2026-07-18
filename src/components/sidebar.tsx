@@ -257,6 +257,10 @@ export function Sidebar({ onClose }: { onClose?: () => void }) {
                     )}
                     {isAdminPage ? "Dashboard" : "Admin Dashboard"}
                   </DropdownMenuItem>
+                  <DropdownMenuItem className="cursor-pointer" onClick={() => { if (window.matchMedia("(max-width: 767px)").matches) onClose?.(); router.push("/admin/apk"); }}>
+                    <UploadCloud className="mr-2 h-4 w-4" />
+                    APK Releases
+                  </DropdownMenuItem>
                 </DropdownMenuGroup>
               </>
             )}

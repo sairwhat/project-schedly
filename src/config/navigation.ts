@@ -30,12 +30,6 @@ export const navGroups: NavGroup[] = [
       { label: "Music", href: "/music", icon: "music" },
     ],
   },
-  {
-    title: "Admin",
-    items: [
-      { label: "APK Releases", href: "/admin/apk", icon: "upload-cloud", adminOnly: true },
-    ],
-  },
 ];
 
 export const mainNav: NavItem[] = navGroups.flatMap((g) => g.items);
