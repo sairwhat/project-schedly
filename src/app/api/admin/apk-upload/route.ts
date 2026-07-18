@@ -6,6 +6,8 @@ const BLOB_TOKEN = process.env.BLOB_READ_WRITE_TOKEN;
 const VERSION_KEY = "releases/version.json";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 120;
+export const runtime = "nodejs";
 
 function computeCode(versionName: string): number {
   const clean = versionName.replace(/^v/i, "").trim();
@@ -29,27 +31,23 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const form = await request.formData();
-    const file = form.get("file");
-    const versionName = String(form.get("versionName") || "").trim();
+    const versionName = String(request.headers.get("x-version-name") || "").trim();
     const updateMessage =
-      String(form.get("updateMessage") || "").trim() ||
+      String(request.headers.get("x-update-message") || "").trim() ||
       `New version ${versionName} is now available.`;
 
-    if (!(file instanceof File) || !versionName) {
+    const body = request.body;
+    if (!body || !versionName) {
       return NextResponse.json(
         { error: "Version name and APK file are required." },
         { status: 400 }
       );
     }
-    if (!file.name.toLowerCase().endsWith(".apk")) {
-      return NextResponse.json({ error: "File must be an .apk" }, { status: 400 });
-    }
 
     const clean = versionName.replace(/^v/i, "").trim();
     const apkKey = `releases/Schedly-${clean}-release.apk`;
 
-    const blob = await put(apkKey, file, {
+    const blob = await put(apkKey, body as unknown as ReadableStream, {
       access: "public",
       addRandomSuffix: false,
       token: BLOB_TOKEN,

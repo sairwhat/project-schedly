@@ -100,20 +100,23 @@ export default function AdminApkPage() {
     pushLog("info", `Preparing release v${cleanVersion}...`);
     pushLog("info", `File: ${selectedFile.name} (${(selectedFile.size / 1024 / 1024).toFixed(2)} MB)`);
     try {
-      const form = new FormData();
-      form.append("file", selectedFile);
-      form.append("versionName", cleanVersion);
-      form.append("updateMessage", updateMessage);
-
       pushLog("info", "Uploading to Blob via server...");
+
+      let lastLogged = -1;
       const result = await new Promise<{ ok: boolean; url?: string; error?: string }>(
         (resolve, reject) => {
           const xhr = new XMLHttpRequest();
           xhr.open("POST", "/api/admin/apk-upload");
+          xhr.setRequestHeader("Content-Type", "application/octet-stream");
+          xhr.setRequestHeader("x-version-name", cleanVersion);
+          xhr.setRequestHeader("x-update-message", updateMessage);
           xhr.upload.onprogress = (e) => {
             if (e.lengthComputable) {
               const p = Math.round((e.loaded / e.total) * 100);
-              pushLog("info", `Uploading... ${p}%`);
+              if (p - lastLogged >= 10 || p === 100) {
+                pushLog("info", `Uploading... ${p}%`);
+                lastLogged = p;
+              }
             }
           };
           xhr.onload = () => {
@@ -129,7 +132,7 @@ export default function AdminApkPage() {
             }
           };
           xhr.onerror = () => reject(new Error("Network error during upload."));
-          xhr.send(form);
+          xhr.send(selectedFile);
         }
       );
 
