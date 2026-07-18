@@ -464,7 +464,7 @@ export default function MusicPage() {
 
       {/* Now playing bar (Spotify-style, fixed at bottom of page) */}
       {currentSong && (
-        <div className="mt-2 flex shrink-0 items-center gap-3 rounded-2xl border border-border/50 bg-card/80 px-4 py-3 shadow-lg backdrop-blur-xl">
+        <div className="mb-6 mt-2 flex shrink-0 items-center gap-3 rounded-2xl border border-border/50 bg-card/80 px-4 py-3 shadow-lg backdrop-blur-xl">
           <div
             className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl"
             style={{ background: `linear-gradient(135deg, ${currentSong.color[0]} 0%, ${currentSong.color[1]} 100%)` }}
