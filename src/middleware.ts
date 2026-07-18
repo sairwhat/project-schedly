@@ -7,7 +7,7 @@ const publicApiRoutes = ["/api/auth", "/api/version", "/api/admin/apk", "/api/ad
 const verificationRoutes = ["/verify-email"];
 const emailVerificationEnabled = process.env.RESEND_API_KEY === "true" || !!process.env.RESEND_API_KEY;
 
-export async function proxy(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   const isPublicApi = publicApiRoutes.some((route) => pathname.startsWith(route));
