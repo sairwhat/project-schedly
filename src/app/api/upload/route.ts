@@ -4,6 +4,7 @@ import { auth } from "@/server/lib/auth";
 import { db } from "@/server/db/client";
 import { extractScheduleFromImage } from "@/server/lib/ai";
 import { extractionResultSchema } from "@/server/validators/ai.schema";
+import { detectImageMime, checkRateLimit } from "@/server/lib/security";
 import fs from "fs/promises";
 import path from "path";
 
@@ -12,20 +13,21 @@ const UPLOAD_DIR = path.join(process.cwd(), "public", "uploads");
 
 type StoredFile = { url: string; key: string };
 
-async function storeFile(file: File, key: string): Promise<StoredFile> {
+async function storeFile(buffer: Uint8Array, mime: string, key: string): Promise<StoredFile> {
+  const blob = new Blob([Buffer.from(buffer)], { type: mime });
+
   if (BLOB_TOKEN) {
-    const blob = await put(key, file, {
+    const result = await put(key, blob, {
       access: "public",
       addRandomSuffix: false,
       token: BLOB_TOKEN,
     });
-    return { url: blob.url, key };
+    return { url: result.url, key };
   }
 
   const target = path.join(UPLOAD_DIR, key);
   await fs.mkdir(path.dirname(target), { recursive: true });
-  const buffer = Buffer.from(await file.arrayBuffer());
-  await fs.writeFile(target, buffer);
+  await fs.writeFile(target, Buffer.from(buffer));
   return { url: `/uploads/${key}`, key };
 }
 
@@ -36,6 +38,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const rateCheck = checkRateLimit(`upload:${session.user.id}`, 10, 60_000);
+  if (!rateCheck.allowed) {
+    return NextResponse.json({ error: "Too many uploads. Try again later." }, { status: 429 });
+  }
+
   try {
     const formData = await request.formData();
     const file = formData.get("file") as File | null;
@@ -44,19 +51,26 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "No file provided" }, { status: 400 });
     }
 
-    if (!file.type.startsWith("image/")) {
-      return NextResponse.json({ error: "File must be an image" }, { status: 400 });
-    }
-
     const maxSize = 10 * 1024 * 1024;
     if (file.size > maxSize) {
       return NextResponse.json({ error: "File too large (max 10MB)" }, { status: 400 });
     }
 
+    if (file.size === 0) {
+      return NextResponse.json({ error: "File is empty" }, { status: 400 });
+    }
+
+    const buffer = new Uint8Array(await file.arrayBuffer());
+    const detectedMime = detectImageMime(buffer);
+
+    if (!detectedMime) {
+      return NextResponse.json({ error: "File must be an image (JPEG, PNG, GIF, WebP, or BMP)" }, { status: 400 });
+    }
+
     const ext = file.name.split(".").pop() || "jpg";
     const key = `schedules/${session.user.id}/${crypto.randomUUID()}.${ext}`;
 
-    const stored = await storeFile(file, key);
+    const stored = await storeFile(buffer, detectedMime, key);
 
     const upload = await db.upload.create({
       data: {
@@ -64,7 +78,7 @@ export async function POST(request: NextRequest) {
         fileUrl: stored.url,
         fileName: file.name,
         fileSize: file.size,
-        mimeType: file.type,
+        mimeType: detectedMime,
         status: "processing",
       },
     });
