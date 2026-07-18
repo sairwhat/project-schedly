@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useAuth } from "@/features/auth/hooks/use-auth";
+import { upload } from "@vercel/blob/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -65,24 +66,36 @@ export default function AdminApkPage() {
     setUploading(true);
     setMessage(null);
     try {
-      const fd = new FormData();
-      fd.append("file", file);
-      fd.append("versionName", versionName);
-      fd.append("updateMessage", updateMessage);
-      const res = await fetch("/api/admin/apk", { method: "POST", body: fd });
-      const data = await res.json();
-      if (!res.ok) {
-        setMessage({ type: "err", text: data.error ?? "Upload failed." });
-      } else {
-        setMessage({ type: "ok", text: `Published v${data.version.versionName} successfully.` });
-        setCurrent(data.version);
-        setFile(null);
-        setVersionName("");
-        setUpdateMessage("");
-        if (fileRef.current) fileRef.current.value = "";
-      }
-    } catch {
-      setMessage({ type: "err", text: "Network error during upload." });
+      const apkKey = `releases/Schedly-${versionName.replace(/^v/i, "").trim()}-release.apk`;
+      const clientPayload = JSON.stringify({
+        versionName,
+        updateMessage: updateMessage || `New version ${versionName} is now available.`,
+      });
+
+      const blob = await upload(apkKey, file, {
+        access: "public",
+        handleUploadUrl: "/api/admin/apk-token",
+        clientPayload,
+      });
+
+      setMessage({ type: "ok", text: `Published v${versionName} successfully.` });
+      setCurrent({
+        versionName: versionName.replace(/^v/i, "").trim(),
+        apkUrl: blob.url,
+      });
+      setFile(null);
+      setVersionName("");
+      setUpdateMessage("");
+      if (fileRef.current) fileRef.current.value = "";
+    } catch (err) {
+      console.error(err);
+      setMessage({
+        type: "err",
+        text:
+          err instanceof Error
+            ? `Upload failed: ${err.message}`
+            : "Network error during upload.",
+      });
     } finally {
       setUploading(false);
     }
