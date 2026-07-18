@@ -27,13 +27,18 @@ export const navGroups: NavGroup[] = [
       { label: "Reminders", href: "/reminders", icon: "bell-ring" },
       { label: "Pomodoro Timer", href: "/pomodoro", icon: "timer" },
       { label: "Notes", href: "/notes", icon: "sticky-note" },
-      { label: "Music", href: "/music", icon: "music" },
     ],
   },
   {
     title: "Academics",
     items: [
       { label: "GPA Calculator", href: "/gpa", icon: "graduation-cap" },
+    ],
+  },
+  {
+    title: "More",
+    items: [
+      { label: "Music", href: "/music", icon: "music" },
     ],
   },
 ];
