@@ -53,6 +53,26 @@ function getColor(title: string): [string, string] {
   return GRADIENTS[Math.abs(hash) % GRADIENTS.length]!;
 }
 
+function makeArtwork(color: [string, string]): string {
+  if (typeof document === "undefined") return "";
+  const c = document.createElement("canvas");
+  c.width = 256;
+  c.height = 256;
+  const ctx = c.getContext("2d");
+  if (!ctx) return "";
+  const grad = ctx.createLinearGradient(0, 0, 256, 256);
+  grad.addColorStop(0, color[0]);
+  grad.addColorStop(1, color[1]);
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, 256, 256);
+  ctx.fillStyle = "rgba(255,255,255,0.25)";
+  ctx.font = "120px sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText("♪", 128, 138);
+  return c.toDataURL("image/png");
+}
+
 const DB_NAME = "schedly-music";
 const DB_VERSION = 1;
 const STORE_NAME = "songs";
@@ -195,6 +215,9 @@ export default function MusicPage() {
         title: currentSong.title,
         artist: currentSong.artist,
         album: currentSong.album || "Schedly Music",
+        artwork: [
+          { src: makeArtwork(currentSong.color), sizes: "256x256", type: "image/png" },
+        ],
       });
       ms.playbackState = playing ? "playing" : "paused";
     } catch {}
