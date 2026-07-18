@@ -61,15 +61,12 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
           ].join(" ")}
         >
           <div className="mx-auto w-[90%] max-w-3xl md:w-full">
-            <div className="mb-5 flex items-center gap-2.5">
+            <div className="mb-5 flex items-center">
               <img
                 src="/images/logo.jpg"
                 alt="Schedly"
                 className="h-9 w-9 rounded-xl object-cover"
               />
-              <span className="text-lg font-bold tracking-tight text-foreground">
-                Schedly
-              </span>
             </div>
             <div className="grid min-h-[calc(100vh-7rem)] w-full place-items-center">
               <div className="w-full">{children}</div>
