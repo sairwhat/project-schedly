@@ -88,25 +88,27 @@ export default function AdminApkPage() {
   }
 
   async function handleUpload() {
-    if (!file || !versionName) {
+    const selectedFile = file ?? fileRef.current?.files?.[0] ?? null;
+    const cleanVersion = versionName.trim();
+    if (!selectedFile || !cleanVersion) {
       setMessage({ type: "err", text: "Version name and APK file are required." });
-      pushLog("err", "Validation failed: version name and APK file are required.");
+      pushLog("err", `Validation failed: version="${cleanVersion}" file=${selectedFile ? selectedFile.name : "none"}`);
       return;
     }
     setUploading(true);
     setMessage(null);
     setLogs([]);
-    pushLog("info", `Preparing release v${versionName}...`);
-    pushLog("info", `File: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
+    pushLog("info", `Preparing release v${cleanVersion}...`);
+    pushLog("info", `File: ${selectedFile.name} (${(selectedFile.size / 1024 / 1024).toFixed(2)} MB)`);
     try {
-      const apkKey = `releases/Schedly-${versionName.replace(/^v/i, "").trim()}-release.apk`;
+      const apkKey = `releases/Schedly-${cleanVersion.replace(/^v/i, "").trim()}-release.apk`;
       const clientPayload = JSON.stringify({
-        versionName,
-        updateMessage: updateMessage || `New version ${versionName} is now available.`,
+        versionName: cleanVersion,
+        updateMessage: updateMessage || `New version ${cleanVersion} is now available.`,
       });
 
       pushLog("info", "Requesting upload token from server...");
-      const blob = await upload(apkKey, file, {
+      const blob = await upload(apkKey, selectedFile, {
         access: "public",
         handleUploadUrl: "/api/admin/apk-token",
         clientPayload,
@@ -120,12 +122,12 @@ export default function AdminApkPage() {
 
       pushLog("ok", "APK uploaded to Blob storage.");
       pushLog("info", "Server writing releases/version.json...");
-      pushLog("ok", `Published v${versionName} successfully.`);
+      pushLog("ok", `Published v${cleanVersion} successfully.`);
       pushLog("ok", `APK URL: ${blob.url}`);
 
-      setMessage({ type: "ok", text: `Published v${versionName} successfully.` });
+      setMessage({ type: "ok", text: `Published v${cleanVersion} successfully.` });
       setCurrent({
-        versionName: versionName.replace(/^v/i, "").trim(),
+        versionName: cleanVersion.replace(/^v/i, "").trim(),
         apkUrl: blob.url,
       });
       setFile(null);
@@ -213,12 +215,17 @@ export default function AdminApkPage() {
 
           <div className="space-y-2">
             <Label htmlFor="apk">APK file</Label>
-            <Input
+            <input
               id="apk"
               ref={fileRef}
               type="file"
               accept=".apk"
-              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+              onChange={(e) => {
+                const f = e.target.files?.[0] ?? null;
+                setFile(f);
+                if (f) pushLog("info", `Selected: ${f.name} (${(f.size / 1024 / 1024).toFixed(2)} MB)`);
+              }}
+              className="block w-full cursor-pointer rounded-lg border border-border bg-transparent text-sm text-muted-foreground file:mr-3 file:rounded-lg file:border-0 file:bg-primary/10 file:px-3 file:py-2 file:text-sm file:font-medium file:text-primary hover:file:bg-primary/20"
             />
             {file && (
               <p className="text-xs text-muted-foreground">
