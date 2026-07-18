@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { LifeBuoy, Send, CheckCircle, Loader2, AlertCircle } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
@@ -112,8 +113,180 @@ export default function SettingsPage() {
               <SecurityTab />
             </TabsContent>
           </Tabs>
+
+          <SupportSection />
         </div>
       </main>
+    </div>
+  );
+}
+
+const FEEDBACK_TYPE_OPTIONS = [
+  { value: "bug", label: "Report an issue" },
+  { value: "feedback", label: "Feedback / suggestion" },
+  { value: "question", label: "Question" },
+];
+
+const FEEDBACK_PAGE_OPTIONS = [
+  { value: "", label: "General" },
+  { value: "Schedule Upload", label: "Schedule Upload" },
+  { value: "To-Do", label: "To-Do List" },
+  { value: "Reminders", label: "Reminders" },
+  { value: "GPA Calculator", label: "GPA Calculator" },
+  { value: "Notifications", label: "Notifications" },
+];
+
+function SupportSection() {
+  const [type, setType] = useState("bug");
+  const [page, setPage] = useState("Schedule Upload");
+  const [subject, setSubject] = useState("");
+  const [message, setMessage] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState(false);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    if (!message.trim()) {
+      setError("Please describe your issue or feedback.");
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await fetch("/api/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type,
+          subject: subject.trim() || undefined,
+          message: message.trim(),
+          page: page || undefined,
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error((data as { error?: string }).error || "Something went wrong. Please try again.");
+      }
+      setDone(true);
+      setSubject("");
+      setMessage("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="mt-8 space-y-4">
+      <div>
+        <h2 className="text-lg font-semibold text-foreground">Help &amp; Feedback</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Having trouble? Tell us what happened and we&apos;ll look into it.
+        </p>
+      </div>
+
+      {done ? (
+        <div className="flex flex-col items-center justify-center rounded-2xl border border-green-200 bg-green-50 px-6 py-12 text-center dark:border-green-800 dark:bg-green-950">
+          <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-green-100 dark:bg-green-900">
+            <CheckCircle className="h-6 w-6 text-green-600 dark:text-green-400" />
+          </div>
+          <h3 className="text-base font-semibold text-green-900 dark:text-green-100">Sent! Thank you.</h3>
+          <p className="mt-1 max-w-xs text-sm text-green-700 dark:text-green-300">
+            We&apos;ve received your message.
+          </p>
+          <Button className="mt-4" onClick={() => setDone(false)}>
+            Send another
+          </Button>
+        </div>
+      ) : (
+        <Card className="border-border/50">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <LifeBuoy className="h-5 w-5 text-primary" />
+              Share your issue
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="fb-type">Type</Label>
+                  <select
+                    id="fb-type"
+                    value={type}
+                    onChange={(e) => setType(e.target.value)}
+                    className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    {FEEDBACK_TYPE_OPTIONS.map((o) => (
+                      <option key={o.value} value={o.value}>{o.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="fb-page">Where did this happen?</Label>
+                  <select
+                    id="fb-page"
+                    value={page}
+                    onChange={(e) => setPage(e.target.value)}
+                    className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    {FEEDBACK_PAGE_OPTIONS.map((o) => (
+                      <option key={o.value} value={o.value}>{o.label}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="fb-subject">Subject (optional)</Label>
+                <Input
+                  id="fb-subject"
+                  value={subject}
+                  onChange={(e) => setSubject(e.target.value)}
+                  placeholder="Short summary"
+                  maxLength={200}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="fb-message">Message</Label>
+                <textarea
+                  id="fb-message"
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  rows={6}
+                  maxLength={5000}
+                  placeholder="Describe the issue, what you expected, and what happened."
+                  className="w-full resize-y rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                />
+              </div>
+
+              {error && (
+                <p className="flex items-center gap-1.5 text-sm text-red-500">
+                  <AlertCircle className="h-4 w-4" />
+                  {error}
+                </p>
+              )}
+
+              <Button type="submit" disabled={loading} className="w-full sm:w-auto">
+                {loading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Sending...
+                  </>
+                ) : (
+                  <>
+                    <Send className="mr-2 h-4 w-4" />
+                    Send
+                  </>
+                )}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

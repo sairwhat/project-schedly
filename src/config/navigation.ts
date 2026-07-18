@@ -34,7 +34,6 @@ export const navGroups: NavGroup[] = [
     title: "Support",
     items: [
       { label: "Notifications", href: "/notifications", icon: "bell" },
-      { label: "Help & Feedback", href: "/feedback", icon: "life-buoy" },
     ],
   },
   {
