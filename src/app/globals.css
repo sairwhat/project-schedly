@@ -144,7 +144,3 @@ body {
   }
 }
 
-@keyframes musicBar {
-  0%, 100% { height: 30%; }
-  50% { height: 100%; }
-}
