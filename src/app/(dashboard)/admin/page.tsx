@@ -32,6 +32,7 @@ export default function AdminPage() {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [visibleCount, setVisibleCount] = useState(5);
 
   useEffect(() => {
     async function load() {
@@ -137,10 +138,11 @@ export default function AdminPage() {
           <CardTitle className="text-base">Users</CardTitle>
         </CardHeader>
         <CardContent>
+          <div className="max-h-[420px] overflow-y-auto pr-1">
           {/* Desktop table */}
           <div className="hidden overflow-x-auto sm:block">
             <table className="w-full text-sm">
-              <thead>
+              <thead className="sticky top-0 bg-card">
                 <tr className="border-b border-border/40 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
                   <th className="pb-3 pr-4">Name</th>
                   <th className="pb-3 pr-4">Email</th>
@@ -151,7 +153,7 @@ export default function AdminPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/30">
-                {users.map((user) => (
+                {users.slice(0, visibleCount).map((user) => (
                   <tr key={user.id} className="transition-colors hover:bg-muted/30">
                     <td className="py-3 pr-4 font-medium text-foreground">
                       {user.firstName} {user.lastName}
@@ -179,7 +181,7 @@ export default function AdminPage() {
 
           {/* Mobile cards */}
           <div className="space-y-3 sm:hidden">
-            {users.map((user) => (
+            {users.slice(0, visibleCount).map((user) => (
               <div key={user.id} className="rounded-xl border border-border/40 bg-muted/20 p-3 space-y-2">
                 <div className="flex items-center justify-between">
                   <p className="font-medium text-foreground text-sm">
@@ -202,6 +204,19 @@ export default function AdminPage() {
               </div>
             ))}
           </div>
+          </div>
+
+          {visibleCount < users.length && (
+            <div className="flex justify-center pt-4">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setVisibleCount((c) => c + 5)}
+              >
+                Load more ({users.length - visibleCount} left)
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
