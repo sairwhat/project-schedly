@@ -261,6 +261,13 @@ export function Sidebar({ onClose }: { onClose?: () => void }) {
               </>
             )}
             <DropdownMenuSeparator />
+            <DropdownMenuGroup>
+              <DropdownMenuItem className="cursor-pointer" onClick={() => { if (window.matchMedia("(max-width: 767px)").matches) onClose?.(); router.push("/feedback"); }}>
+                <LifeBuoy className="mr-2 h-4 w-4" />
+                Help &amp; Feedback
+              </DropdownMenuItem>
+            </DropdownMenuGroup>
+            <DropdownMenuSeparator />
             <DropdownMenuItem variant="destructive" onClick={() => signOut()}>
               <svg className="mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
