@@ -34,29 +34,12 @@ interface SongMeta {
 
 type RepeatMode = "off" | "all" | "one";
 
-const DB_NAME = "schedly-music";
-const STORE_NAME = "songs";
-
-function openDB(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, 1);
-    req.onupgradeneeded = () => {
-      const db = req.result;
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        db.createObjectStore(STORE_NAME, { keyPath: "id" });
-      }
-    };
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
-  });
-}
-
-function loadAll(): Promise<SongMeta[]> {
+function loadAll(): SongMeta[] {
   try {
     const raw = localStorage.getItem("schedly-music-meta");
-    return Promise.resolve(raw ? JSON.parse(raw) : []);
+    return raw ? JSON.parse(raw) : [];
   } catch {
-    return Promise.resolve([]);
+    return [];
   }
 }
 
@@ -118,38 +101,54 @@ export default function MusicPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [showFullPlayer, setShowFullPlayer] = useState(false);
 
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const fileMapRef = useRef<Map<string, File>>(new Map());
   const blobUrlsRef = useRef<Map<string, string>>(new Map());
-  const songsRef = useRef<SongMeta[]>([]);
   const currentIdRef = useRef<string | null>(null);
+
   const repeatModeRef = useRef<RepeatMode>("off");
   const shuffledRef = useRef(false);
+  const songsRef = useRef<SongMeta[]>([]);
 
   songsRef.current = songs;
   currentIdRef.current = currentId;
   repeatModeRef.current = repeatMode;
   shuffledRef.current = shuffled;
 
-  // Init audio element once
-  useEffect(() => {
-    const audio = new Audio();
-    audioRef.current = audio;
+  // Keep a ref to playFile so event listeners always call the latest version
+  const playFileRef = useRef<(id: string) => void>(() => {});
 
-    const onTimeUpdate = () => setCurrentTime(audio.currentTime);
-    const onDurationChange = () => setDuration(audio.duration || 0);
+  // Load persisted metadata on mount
+  useEffect(() => {
+    setSongs(loadAll());
+    setLoaded(true);
+  }, []);
+
+  // Sync volume to audio element
+  useEffect(() => {
+    const el = audioRef.current;
+    if (el) el.volume = muted ? 0 : volume;
+  }, [volume, muted]);
+
+  // Attach audio event listeners once (the element is in JSX)
+  useEffect(() => {
+    const el = audioRef.current;
+    if (!el) return;
+
+    const onTimeUpdate = () => setCurrentTime(el.currentTime);
+    const onDurationChange = () => setDuration(el.duration || 0);
     const onPlay = () => setPlaying(true);
     const onPause = () => setPlaying(false);
     const onError = () => {
-      console.error("Audio error:", audio.error?.message || "unknown");
+      console.error("Audio error:", el.error?.message || "unknown");
       setPlaying(false);
     };
     const onEnded = () => {
       const mode = repeatModeRef.current;
       if (mode === "one") {
-        audio.currentTime = 0;
-        audio.play().catch(() => {});
+        el.currentTime = 0;
+        el.play().catch(() => {});
         return;
       }
       const list = songsRef.current;
@@ -158,67 +157,51 @@ export default function MusicPage() {
       const idx = list.findIndex((s) => s.id === currId);
       if (idx < 0) return;
 
+      let nextIdx: number;
       if (shuffledRef.current) {
-        const next = Math.floor(Math.random() * list.length);
-        playFile(list[next]!.id);
+        nextIdx = Math.floor(Math.random() * list.length);
       } else {
-        const next = idx + 1;
-        if (next >= list.length) {
+        nextIdx = idx + 1;
+        if (nextIdx >= list.length) {
           if (mode === "all") {
-            playFile(list[0]!.id);
+            nextIdx = 0;
           } else {
             setCurrentId(null);
             setPlaying(false);
-            audio.src = "";
+            el.src = "";
+            return;
           }
-        } else {
-          playFile(list[next]!.id);
         }
       }
+      playFileRef.current(list[nextIdx]!.id);
     };
 
-    audio.addEventListener("timeupdate", onTimeUpdate);
-    audio.addEventListener("durationchange", onDurationChange);
-    audio.addEventListener("ended", onEnded);
-    audio.addEventListener("play", onPlay);
-    audio.addEventListener("pause", onPause);
-    audio.addEventListener("error", onError);
+    el.addEventListener("timeupdate", onTimeUpdate);
+    el.addEventListener("durationchange", onDurationChange);
+    el.addEventListener("ended", onEnded);
+    el.addEventListener("play", onPlay);
+    el.addEventListener("pause", onPause);
+    el.addEventListener("error", onError);
 
     return () => {
-      audio.removeEventListener("timeupdate", onTimeUpdate);
-      audio.removeEventListener("durationchange", onDurationChange);
-      audio.removeEventListener("ended", onEnded);
-      audio.removeEventListener("play", onPlay);
-      audio.removeEventListener("pause", onPause);
-      audio.removeEventListener("error", onError);
-      audio.pause();
-      audio.src = "";
-      blobUrlsRef.current.forEach((u) => URL.revokeObjectURL(u));
-      blobUrlsRef.current.clear();
+      el.removeEventListener("timeupdate", onTimeUpdate);
+      el.removeEventListener("durationchange", onDurationChange);
+      el.removeEventListener("ended", onEnded);
+      el.removeEventListener("play", onPlay);
+      el.removeEventListener("pause", onPause);
+      el.removeEventListener("error", onError);
     };
   }, []);
 
-  useEffect(() => {
-    if (audioRef.current) {
-      audioRef.current.volume = muted ? 0 : volume;
-    }
-  }, [volume, muted]);
-
-  useEffect(() => {
-    loadAll().then((meta) => {
-      setSongs(meta);
-      setLoaded(true);
-    });
-  }, []);
-
-  function playFile(id: string) {
+  // playFile implementation
+  const playFile = useCallback((id: string) => {
     const file = fileMapRef.current.get(id);
     if (!file) {
       console.error("File not found for id:", id);
       return;
     }
-    const audio = audioRef.current;
-    if (!audio) return;
+    const el = audioRef.current;
+    if (!el) return;
 
     const existing = blobUrlsRef.current.get(id);
     if (existing) {
@@ -228,25 +211,28 @@ export default function MusicPage() {
     blobUrlsRef.current.set(id, url);
 
     setCurrentId(id);
-    audio.src = url;
-    audio.currentTime = 0;
-    audio.play().catch((err) => {
+    el.src = url;
+    el.currentTime = 0;
+    el.play().catch((err) => {
       console.error("Play failed:", err);
       setPlaying(false);
     });
-  }
+  }, []);
+
+  // Keep the ref always pointing to the latest playFile
+  playFileRef.current = playFile;
 
   function handleSongClick(id: string) {
     if (id === currentIdRef.current) {
-      const audio = audioRef.current;
-      if (!audio) return;
-      if (audio.paused) {
-        audio.play().catch((err) => {
+      const el = audioRef.current;
+      if (!el) return;
+      if (el.paused) {
+        el.play().catch((err) => {
           console.error("Play failed:", err);
           setPlaying(false);
         });
       } else {
-        audio.pause();
+        el.pause();
       }
     } else {
       playFile(id);
@@ -254,36 +240,35 @@ export default function MusicPage() {
   }
 
   function togglePlay() {
-    const audio = audioRef.current;
-    if (!audio) return;
+    const el = audioRef.current;
+    if (!el) return;
     if (!currentIdRef.current && songsRef.current.length > 0) {
       playFile(songsRef.current[0]!.id);
       return;
     }
-    if (audio.paused) {
-      audio.play().catch((err) => {
+    if (el.paused) {
+      el.play().catch((err) => {
         console.error("Play failed:", err);
         setPlaying(false);
       });
     } else {
-      audio.pause();
+      el.pause();
     }
   }
 
   function seek(e: React.ChangeEvent<HTMLInputElement>) {
     const time = Number(e.target.value);
     setCurrentTime(time);
-    if (audioRef.current) {
-      audioRef.current.currentTime = time;
-    }
+    const el = audioRef.current;
+    if (el) el.currentTime = time;
   }
 
   function prevSong() {
     const list = songsRef.current;
     if (list.length === 0) return;
-    const audio = audioRef.current;
-    if (audio && audio.currentTime > 3) {
-      audio.currentTime = 0;
+    const el = audioRef.current;
+    if (el && el.currentTime > 3) {
+      el.currentTime = 0;
       return;
     }
     const currId = currentIdRef.current;
@@ -321,7 +306,7 @@ export default function MusicPage() {
     }
   }
 
-  async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
+  function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const files = e.target.files;
     if (!files) return;
 
@@ -356,7 +341,7 @@ export default function MusicPage() {
     }
   }
 
-  async function handleDelete(id: string, e: React.MouseEvent) {
+  function handleDelete(id: string, e: React.MouseEvent) {
     e.stopPropagation();
     fileMapRef.current.delete(id);
     const existing = blobUrlsRef.current.get(id);
@@ -370,9 +355,10 @@ export default function MusicPage() {
     if (currentIdRef.current === id) {
       setCurrentId(null);
       setPlaying(false);
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current.src = "";
+      const el = audioRef.current;
+      if (el) {
+        el.pause();
+        el.src = "";
       }
     }
   }
@@ -386,6 +372,8 @@ export default function MusicPage() {
 
   return (
     <div className="mx-auto flex h-full w-full max-w-4xl flex-col">
+      <audio ref={audioRef} preload="auto" />
+
       <input
         ref={fileInputRef}
         type="file"
@@ -582,50 +570,30 @@ export default function MusicPage() {
                 >
                   <Shuffle className="h-5 w-5" />
                 </button>
-                <button
-                  onClick={prevSong}
-                  className="rounded-full p-2 text-muted-foreground transition-colors hover:text-foreground"
-                >
+                <button onClick={prevSong} className="rounded-full p-2 text-muted-foreground transition-colors hover:text-foreground">
                   <SkipBack className="h-6 w-6" />
                 </button>
                 <button
                   onClick={togglePlay}
                   className="flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition-transform hover:scale-105 active:scale-95"
                 >
-                  {playing ? (
-                    <Pause className="h-6 w-6" />
-                  ) : (
-                    <Play className="ml-0.5 h-6 w-6" />
-                  )}
+                  {playing ? <Pause className="h-6 w-6" /> : <Play className="ml-0.5 h-6 w-6" />}
                 </button>
-                <button
-                  onClick={nextSong}
-                  className="rounded-full p-2 text-muted-foreground transition-colors hover:text-foreground"
-                >
+                <button onClick={nextSong} className="rounded-full p-2 text-muted-foreground transition-colors hover:text-foreground">
                   <SkipForward className="h-6 w-6" />
                 </button>
                 <button
                   onClick={() =>
                     setRepeatMode(
-                      repeatMode === "off"
-                        ? "all"
-                        : repeatMode === "all"
-                          ? "one"
-                          : "off"
+                      repeatMode === "off" ? "all" : repeatMode === "all" ? "one" : "off"
                     )
                   }
                   className={cn(
                     "relative rounded-full p-2 transition-colors",
-                    repeatMode !== "off"
-                      ? "text-primary"
-                      : "text-muted-foreground hover:text-foreground"
+                    repeatMode !== "off" ? "text-primary" : "text-muted-foreground hover:text-foreground"
                   )}
                 >
-                  {repeatMode === "one" ? (
-                    <Repeat1 className="h-5 w-5" />
-                  ) : (
-                    <Repeat className="h-5 w-5" />
-                  )}
+                  {repeatMode === "one" ? <Repeat1 className="h-5 w-5" /> : <Repeat className="h-5 w-5" />}
                   {repeatMode === "one" && (
                     <span className="absolute -right-0.5 -top-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-primary text-[8px] font-bold text-primary-foreground">
                       1
@@ -636,17 +604,8 @@ export default function MusicPage() {
 
               {/* Volume */}
               <div className="flex w-full max-w-xs items-center gap-2">
-                <button
-                  onClick={() => setMuted(!muted)}
-                  className="text-muted-foreground hover:text-foreground"
-                >
-                  {muted || volume === 0 ? (
-                    <VolumeX className="h-4 w-4" />
-                  ) : volume < 0.5 ? (
-                    <Volume1 className="h-4 w-4" />
-                  ) : (
-                    <Volume2 className="h-4 w-4" />
-                  )}
+                <button onClick={() => setMuted(!muted)} className="text-muted-foreground hover:text-foreground">
+                  {muted || volume === 0 ? <VolumeX className="h-4 w-4" /> : volume < 0.5 ? <Volume1 className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
                 </button>
                 <input
                   type="range"
@@ -686,31 +645,20 @@ export default function MusicPage() {
                   {currentSong.name}
                 </p>
                 <p className="truncate text-xs text-muted-foreground">
-                  {currentSong.artist} &middot; {formatTime(currentTime)} /{" "}
-                  {formatTime(duration)}
+                  {currentSong.artist} &middot; {formatTime(currentTime)} / {formatTime(duration)}
                 </p>
               </div>
               <div className="flex items-center gap-1">
-                <button
-                  onClick={prevSong}
-                  className="rounded-full p-2 text-muted-foreground transition-colors hover:text-foreground"
-                >
+                <button onClick={prevSong} className="rounded-full p-2 text-muted-foreground transition-colors hover:text-foreground">
                   <SkipBack className="h-5 w-5" />
                 </button>
                 <button
                   onClick={togglePlay}
                   className="flex h-10 w-10 items-center justify-center rounded-full bg-primary text-primary-foreground transition-transform hover:scale-105 active:scale-95"
                 >
-                  {playing ? (
-                    <Pause className="h-5 w-5" />
-                  ) : (
-                    <Play className="ml-0.5 h-5 w-5" />
-                  )}
+                  {playing ? <Pause className="h-5 w-5" /> : <Play className="ml-0.5 h-5 w-5" />}
                 </button>
-                <button
-                  onClick={nextSong}
-                  className="rounded-full p-2 text-muted-foreground transition-colors hover:text-foreground"
-                >
+                <button onClick={nextSong} className="rounded-full p-2 text-muted-foreground transition-colors hover:text-foreground">
                   <SkipForward className="h-5 w-5" />
                 </button>
               </div>
