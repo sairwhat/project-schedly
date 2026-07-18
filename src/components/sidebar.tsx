@@ -82,6 +82,7 @@ function NavItemLink({ item, onNavigate }: { item: NavItem; onNavigate?: () => v
           {item.badge > 99 ? "99+" : item.badge}
         </span>
       )}
+      <ChevronRight className="h-4 w-4 shrink-0 text-sidebar-foreground/30 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-sidebar-foreground/60" />
     </Link>
   );
 }
