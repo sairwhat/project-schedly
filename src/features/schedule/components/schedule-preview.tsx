@@ -17,6 +17,7 @@ type Props = {
   classes: ClassData[];
   filename?: string;
   scale?: number;
+  capture?: boolean;
 };
 
 const ALL_DAYS = [
@@ -59,7 +60,7 @@ function minutesTo12h(m: number): string {
   return `${h}:${String(m2).padStart(2, "0")} ${ampm}`;
 }
 
-export function SchedulePreview({ classes, filename = "schedule.png", scale }: Props) {
+export function SchedulePreview({ classes, filename = "schedule.png", scale, capture }: Props) {
   const activeDays = ALL_DAYS.filter((day) => classes.some((c) => c.days.includes(day)));
 
   if (activeDays.length === 0) {
@@ -81,10 +82,22 @@ export function SchedulePreview({ classes, filename = "schedule.png", scale }: P
         timeToMinutes(c.startTime) === slot
     );
 
+  const isCapture = capture;
+
   return (
     <div
-      className="mx-auto w-full max-w-2xl rounded-xl border border-border/60 bg-card p-4 shadow-2xl shadow-primary/5 sm:p-6"
-      style={scale ? { zoom: scale } : undefined}
+      className={
+        isCapture
+          ? "w-full rounded-xl border border-border/60 bg-card p-8"
+          : "mx-auto w-full max-w-2xl rounded-xl border border-border/60 bg-card p-4 shadow-2xl shadow-primary/5 sm:p-6"
+      }
+      style={
+        isCapture
+          ? { width: "1200px", fontFamily: "inherit" }
+          : scale
+          ? { zoom: scale }
+          : undefined
+      }
     >
       <div className="mb-4 flex items-center gap-2">
         <div className="h-3 w-3 rounded-full bg-destructive/60" />
@@ -94,13 +107,17 @@ export function SchedulePreview({ classes, filename = "schedule.png", scale }: P
       </div>
 
       <div
-        className="grid gap-1 text-[10px]"
+        className={isCapture ? "grid gap-3" : "grid gap-1 text-[10px]"}
         style={{ gridTemplateColumns: `repeat(${activeDays.length}, minmax(0, 1fr))` }}
       >
           {activeDays.map((day) => (
             <div
               key={day}
-              className="rounded-md bg-primary/10 p-1.5 text-center text-xs font-semibold text-primary"
+              className={
+                isCapture
+                  ? "rounded-lg bg-primary/10 p-4 text-center text-2xl font-semibold text-primary"
+                  : "rounded-md bg-primary/10 p-1.5 text-center text-xs font-semibold text-primary"
+              }
             >
               {DAY_LABELS[day]}
             </div>
@@ -110,21 +127,21 @@ export function SchedulePreview({ classes, filename = "schedule.png", scale }: P
             activeDays.map((day) => {
               const items = classesAt(day, slot);
               return (
-                <div key={`${slot}-${day}`} className="min-h-[44px]">
+                <div key={`${slot}-${day}`} className={isCapture ? "min-h-[120px]" : "min-h-[44px]"}>
                   {items.length === 0 ? (
-                    <div className="flex h-full min-h-[44px] items-center justify-center rounded-md bg-muted/30" />
+                    <div className={isCapture ? "flex h-full min-h-[120px] items-center justify-center rounded-lg bg-muted/30" : "flex h-full min-h-[44px] items-center justify-center rounded-md bg-muted/30"} />
                   ) : (
-                    <div className="flex flex-col gap-1">
+                    <div className={isCapture ? "flex flex-col gap-3" : "flex flex-col gap-1"}>
                       {items.map((c) => (
                         <div
                           key={c.id}
-                          className="rounded-md p-1 text-center"
+                          className={isCapture ? "rounded-lg p-4 text-center" : "rounded-md p-1 text-center"}
                           style={{ backgroundColor: c.color + "1f", color: c.color }}
                         >
-                          <div className="text-[10px] font-semibold leading-tight break-words">
+                          <div className={isCapture ? "text-2xl font-semibold leading-tight break-words" : "text-[10px] font-semibold leading-tight break-words"}>
                             {c.code || c.subject}
                           </div>
-                          <div className="text-[9px] opacity-80 leading-tight">
+                          <div className={isCapture ? "text-lg opacity-80 leading-tight" : "text-[9px] opacity-80 leading-tight"}>
                             {minutesTo12h(timeToMinutes(c.startTime))}–
                             {minutesTo12h(timeToMinutes(c.endTime))}
                           </div>

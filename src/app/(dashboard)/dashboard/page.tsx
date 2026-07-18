@@ -106,6 +106,7 @@ export default function DashboardPage() {
   const [greeting, setGreeting] = useState("Good day");
   const [downloading, setDownloading] = useState(false);
   const scheduleRef = useRef<HTMLDivElement>(null);
+  const captureRef = useRef<HTMLDivElement>(null);
 
   const firstName = (user as { firstName?: string } | null)?.firstName || "User";
 
@@ -129,8 +130,8 @@ export default function DashboardPage() {
   const activeTodos = todos.filter((t) => !t.completed).length;
 
   const handleDownload = async () => {
-    const node = scheduleRef.current;
-    if (!node) return;
+      const node = captureRef.current || scheduleRef.current;
+      if (!node) return;
     setDownloading(true);
     try {
       const canvas = await html2canvas(node, {
@@ -329,9 +330,24 @@ export default function DashboardPage() {
             </Button>
           </div>
         ) : (
-          <div ref={scheduleRef}>
-            <SchedulePreview classes={allClasses} filename="schedule.png" />
-          </div>
+          <>
+            <div ref={scheduleRef}>
+              <SchedulePreview classes={allClasses} filename="schedule.png" />
+            </div>
+            <div
+              ref={captureRef}
+              aria-hidden
+              style={{
+                position: "fixed",
+                left: "-99999px",
+                top: 0,
+                pointerEvents: "none",
+                opacity: 1,
+              }}
+            >
+              <SchedulePreview classes={allClasses} filename="schedule.png" capture />
+            </div>
+          </>
         )}
       </div>
     </div>
