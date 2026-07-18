@@ -1,17 +1,529 @@
-import { Music } from "lucide-react";
+"use client";
+
+import { useState, useRef, useEffect, useCallback } from "react";
+import { Button } from "@/components/ui/button";
+import {
+  Play,
+  Pause,
+  SkipBack,
+  SkipForward,
+  Shuffle,
+  Repeat,
+  Repeat1,
+  Upload,
+  Search,
+  Music,
+  ListMusic,
+  ChevronDown,
+  ChevronUp,
+  Trash2,
+  Heart,
+  Volume2,
+  Volume1,
+  VolumeX,
+} from "lucide-react";
+
+interface Song {
+  id: string;
+  title: string;
+  artist: string;
+  album?: string;
+  duration: number;
+  data: string;
+  uploadedAt: number;
+  color: [string, string];
+}
+
+const GRADIENTS: [string, string][] = [
+  ["#ff6b6b", "#ee5a24"],
+  ["#a29bfe", "#6c5ce7"],
+  ["#fd79a8", "#e84393"],
+  ["#00cec9", "#00b894"],
+  ["#fdcb6e", "#e17055"],
+  ["#74b9ff", "#0984e3"],
+  ["#55efc4", "#00b894"],
+  ["#fab1a0", "#e17055"],
+  ["#81ecec", "#00cec9"],
+  ["#dfe6e9", "#b2bec3"],
+];
+
+function fmtTime(s: number) {
+  const m = Math.floor(Math.max(0, s) / 60);
+  const sec = Math.floor(Math.max(0, s) % 60);
+  return `${m}:${String(sec).padStart(2, "0")}`;
+}
+
+function getColor(title: string): [string, string] {
+  let hash = 0;
+  for (let i = 0; i < title.length; i++) hash = title.charCodeAt(i) + ((hash << 5) - hash);
+  return GRADIENTS[Math.abs(hash) % GRADIENTS.length]!;
+}
+
+const DB_NAME = "schedly-music";
+const DB_VERSION = 1;
+const STORE_NAME = "songs";
+
+function openDB(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, DB_VERSION);
+    req.onupgradeneeded = () => req.result.createObjectStore(STORE_NAME, { keyPath: "id" });
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function loadSongs(): Promise<Song[]> {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, "readonly");
+    const req = tx.objectStore(STORE_NAME).getAll();
+    req.onsuccess = () => resolve(req.result || []);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function saveSong(song: Song): Promise<void> {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, "readwrite");
+    tx.objectStore(STORE_NAME).put(song);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+async function deleteSongFromDB(id: string): Promise<void> {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, "readwrite");
+    tx.objectStore(STORE_NAME).delete(id);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
 
 export default function MusicPage() {
-  return (
-    <div className="mx-auto flex h-full w-full max-w-4xl flex-col items-center justify-center">
-      <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border/60 bg-card/30 px-6 py-16 text-center">
-        <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
-          <Music className="h-8 w-8 text-primary" />
-        </div>
-        <p className="text-sm font-medium text-foreground">Your music library is empty</p>
-        <p className="mt-1 max-w-xs text-xs text-muted-foreground">
-          Upload your music files to start listening
-        </p>
+  const [songs, setSongs] = useState<Song[]>([]);
+  const [currentIndex, setCurrentIndex] = useState(-1);
+  const [playing, setPlaying] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [volume, setVolume] = useState(0.7);
+  const [muted, setMuted] = useState(false);
+  const [shuffle, setShuffle] = useState(false);
+  const [repeat, setRepeat] = useState<"off" | "all" | "one">("off");
+  const [showUploading, setShowUploading] = useState(false);
+  const [search, setSearch] = useState("");
+  const [expanded, setExpanded] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const animFrameRef = useRef<number>(0);
+
+  useEffect(() => {
+    loadSongs().then((s) => { setSongs(s); setLoading(false); });
+  }, []);
+
+  useEffect(() => {
+    audioRef.current = new Audio();
+    const a = audioRef.current;
+    a.volume = volume;
+
+    const onTime = () => {
+      setProgress(a.currentTime);
+    };
+    const onDuration = () => setDuration(a.duration || 0);
+    const onEnd = () => {
+      if (repeat === "one") {
+        a.currentTime = 0;
+        a.play();
+      } else {
+        nextTrack();
+      }
+    };
+
+    a.addEventListener("timeupdate", onTime);
+    a.addEventListener("durationchange", onDuration);
+    a.addEventListener("ended", onEnd);
+
+    return () => {
+      a.removeEventListener("timeupdate", onTime);
+      a.removeEventListener("durationchange", onDuration);
+      a.removeEventListener("ended", onEnd);
+      a.pause();
+      a.src = "";
+    };
+  }, [currentIndex, repeat, songs]);
+
+  useEffect(() => {
+    const a = audioRef.current;
+    if (!a || currentIndex < 0 || !songs[currentIndex]) return;
+    a.src = songs[currentIndex].data;
+    a.load();
+    if (playing) a.play().catch(() => setPlaying(false));
+  }, [currentIndex]);
+
+  useEffect(() => {
+    if (!audioRef.current) return;
+    audioRef.current.volume = muted ? 0 : volume;
+  }, [volume, muted]);
+
+  const currentSong = currentIndex >= 0 ? songs[currentIndex] : null;
+
+  function playSong(index: number) {
+    if (index < 0 || index >= songs.length) return;
+    if (index === currentIndex && playing) return;
+    setCurrentIndex(index);
+    setPlaying(true);
+    setProgress(0);
+    setDuration(0);
+  }
+
+  function togglePlay() {
+    if (!audioRef.current || currentIndex < 0) {
+      if (songs.length > 0) playSong(0);
+      return;
+    }
+    if (playing) {
+      audioRef.current.pause();
+      setPlaying(false);
+    } else {
+      audioRef.current.play().catch(() => setPlaying(false));
+      setPlaying(true);
+    }
+  }
+
+  function nextTrack() {
+    if (songs.length === 0) return;
+    let idx: number;
+    if (shuffle) {
+      idx = Math.floor(Math.random() * songs.length);
+    } else {
+      idx = (currentIndex + 1) % songs.length;
+    }
+    if (repeat === "off" && idx <= currentIndex && idx === 0) {
+      if (currentIndex === songs.length - 1) {
+        setPlaying(false);
+        setProgress(0);
+        return;
+      }
+    }
+    playSong(idx);
+  }
+
+  function prevTrack() {
+    if (songs.length === 0) return;
+    const a = audioRef.current;
+    if (a && a.currentTime > 3) {
+      a.currentTime = 0;
+      return;
+    }
+    let idx: number;
+    if (shuffle) {
+      idx = Math.floor(Math.random() * songs.length);
+    } else {
+      idx = (currentIndex - 1 + songs.length) % songs.length;
+    }
+    playSong(idx);
+  }
+
+  function seek(e: React.MouseEvent<HTMLDivElement>) {
+    const a = audioRef.current;
+    if (!a || !duration) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const pct = (e.clientX - rect.left) / rect.width;
+    a.currentTime = pct * duration;
+  }
+
+  function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = e.target.files;
+    if (!files) return;
+    setShowUploading(true);
+    Array.from(files).forEach((file) => {
+      const reader = new FileReader();
+      reader.onload = async (ev) => {
+        const data = ev.target?.result as string;
+        const title = file.name.replace(/\.[^/.]+$/, "");
+        const audio = new Audio(data);
+        audio.addEventListener("loadedmetadata", async () => {
+          const song: Song = {
+            id: crypto.randomUUID(),
+            title,
+            artist: "Unknown Artist",
+            duration: audio.duration,
+            data,
+            uploadedAt: Date.now(),
+            color: getColor(title),
+          };
+          await saveSong(song);
+          setSongs((prev) => [...prev, song]);
+        });
+        audio.addEventListener("error", () => {
+          const song: Song = {
+            id: crypto.randomUUID(),
+            title,
+            artist: "Unknown Artist",
+            duration: 0,
+            data,
+            uploadedAt: Date.now(),
+            color: getColor(title),
+          };
+          saveSong(song);
+          setSongs((prev) => [...prev, song]);
+        });
+        audio.load();
+      };
+      reader.readAsDataURL(file);
+    });
+    e.target.value = "";
+    setTimeout(() => setShowUploading(false), 1500);
+  }
+
+  async function removeSong(id: string) {
+    await deleteSongFromDB(id);
+    setSongs((prev) => {
+      const idx = prev.findIndex((s) => s.id === id);
+      if (idx === currentIndex) {
+        setCurrentIndex(-1);
+        setPlaying(false);
+        if (audioRef.current) { audioRef.current.pause(); audioRef.current.src = ""; }
+      } else if (idx < currentIndex) {
+        setCurrentIndex((c) => c - 1);
+      }
+      return prev.filter((s) => s.id !== id);
+    });
+  }
+
+  const filtered = songs.filter((s) =>
+    s.title.toLowerCase().includes(search.toLowerCase()) ||
+    s.artist.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const VolumeIcon = muted || volume === 0 ? VolumeX : volume < 0.5 ? Volume1 : Volume2;
+
+  if (loading) {
+    return (
+      <div className="mx-auto flex h-full w-full max-w-lg items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
       </div>
+    );
+  }
+
+  return (
+    <div className="mx-auto flex h-full w-full max-w-lg flex-col">
+      <input
+        ref={fileRef}
+        type="file"
+        accept="audio/*"
+        multiple
+        className="hidden"
+        onChange={handleFileUpload}
+      />
+
+      {expanded && currentSong ? (
+        <div className="flex flex-1 flex-col items-center justify-center px-6 py-8">
+          <button onClick={() => setExpanded(false)} className="mb-6 self-start text-muted-foreground hover:text-foreground">
+            <ChevronDown className="h-6 w-6" />
+          </button>
+          <div
+            className="mb-8 h-64 w-64 rounded-3xl shadow-2xl"
+            style={{ background: `linear-gradient(135deg, ${currentSong.color[0]} 0%, ${currentSong.color[1]} 100%)` }}
+          >
+            <div className="flex h-full w-full items-center justify-center">
+              <Music className="h-20 w-20 text-white/30" />
+            </div>
+          </div>
+          <p className="text-center text-xl font-bold text-foreground">{currentSong.title}</p>
+          <p className="mt-1 text-center text-sm text-muted-foreground">{currentSong.artist}</p>
+
+          <div className="mt-8 w-full max-w-sm space-y-2">
+            <div
+              className="relative h-1.5 w-full cursor-pointer rounded-full bg-muted"
+              onClick={seek}
+            >
+              <div
+                className="absolute left-0 top-0 h-full rounded-full bg-primary transition-[width] duration-100"
+                style={{ width: `${duration ? (progress / duration) * 100 : 0}%` }}
+              />
+            </div>
+            <div className="flex justify-between text-xs text-muted-foreground">
+              <span>{fmtTime(progress)}</span>
+              <span>{fmtTime(duration)}</span>
+            </div>
+          </div>
+
+          <div className="mt-6 flex w-full max-w-sm items-center justify-center gap-6">
+            <button onClick={() => setShuffle(!shuffle)} className={`p-2 transition-colors ${shuffle ? "text-primary" : "text-muted-foreground hover:text-foreground"}`}>
+              <Shuffle className="h-5 w-5" />
+            </button>
+            <button onClick={prevTrack} className="p-2 text-muted-foreground hover:text-foreground">
+              <SkipBack className="h-7 w-7" />
+            </button>
+            <button
+              onClick={togglePlay}
+              className="flex h-16 w-16 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition-transform active:scale-95 hover:bg-primary/90"
+            >
+              {playing ? <Pause className="h-7 w-7" /> : <Play className="ml-1 h-7 w-7" />}
+            </button>
+            <button onClick={nextTrack} className="p-2 text-muted-foreground hover:text-foreground">
+              <SkipForward className="h-7 w-7" />
+            </button>
+            <button onClick={() => setRepeat(repeat === "off" ? "all" : repeat === "all" ? "one" : "off")} className={`p-2 transition-colors ${repeat !== "off" ? "text-primary" : "text-muted-foreground hover:text-foreground"}`}>
+              {repeat === "one" ? <Repeat1 className="h-5 w-5" /> : <Repeat className="h-5 w-5" />}
+            </button>
+          </div>
+
+          <div className="mt-8 flex w-full max-w-sm items-center gap-3">
+            <button onClick={() => setMuted(!muted)} className="text-muted-foreground hover:text-foreground">
+              <VolumeIcon className="h-4 w-4" />
+            </button>
+            <div
+              className="relative h-1 flex-1 cursor-pointer rounded-full bg-muted"
+              onClick={(e) => {
+                const rect = e.currentTarget.getBoundingClientRect();
+                const pct = (e.clientX - rect.left) / rect.width;
+                const v = Math.max(0, Math.min(1, pct));
+                setVolume(v);
+                setMuted(false);
+              }}
+            >
+              <div
+                className="absolute left-0 top-0 h-full rounded-full bg-primary"
+                style={{ width: `${(muted ? 0 : volume) * 100}%` }}
+              />
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="flex flex-1 flex-col overflow-hidden">
+          {/* Header */}
+          <div className="flex items-center justify-between px-1 py-4">
+            <h1 className="text-2xl font-bold tracking-tight text-foreground">Music</h1>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="icon" onClick={() => fileRef.current?.click()} title="Upload music">
+                <Upload className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+
+          {/* Search */}
+          <div className="relative mb-3">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <input
+              type="text"
+              placeholder="Search songs..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="h-9 w-full rounded-xl border border-border bg-muted/50 pl-9 pr-3 text-sm outline-none transition-colors placeholder:text-muted-foreground/60 focus:border-ring focus:ring-1 focus:ring-ring/30"
+            />
+          </div>
+
+          {/* Song count */}
+          <div className="mb-2 flex items-center gap-2 px-1 text-xs text-muted-foreground">
+            <ListMusic className="h-3.5 w-3.5" />
+            <span>{filtered.length} song{filtered.length !== 1 ? "s" : ""}</span>
+            {showUploading && <span className="ml-auto text-primary animate-pulse">Uploading...</span>}
+          </div>
+
+          {/* Song list */}
+          <div className="flex-1 overflow-y-auto -mx-1">
+            {filtered.length === 0 ? (
+              <div className="mt-16 flex flex-col items-center justify-center text-center">
+                <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
+                  <Music className="h-8 w-8 text-primary" />
+                </div>
+                <p className="text-sm font-medium text-foreground">Your music library is empty</p>
+                <p className="mt-1 max-w-xs text-xs text-muted-foreground">
+                  Upload your music files to start listening
+                </p>
+                <Button className="mt-5" onClick={() => fileRef.current?.click()}>
+                  <Upload className="mr-2 h-4 w-4" /> Upload Music
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-0.5">
+                {filtered.map((song, i) => {
+                  const realIndex = songs.indexOf(song);
+                  const isActive = realIndex === currentIndex;
+                  const grad = song.color;
+                  return (
+                    <button
+                      key={song.id}
+                      onClick={() => playSong(realIndex)}
+                      className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-muted/50 ${
+                        isActive ? "bg-primary/5" : ""
+                      }`}
+                    >
+                      <div
+                        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
+                        style={{ background: `linear-gradient(135deg, ${grad[0]} 0%, ${grad[1]} 100%)` }}
+                      >
+                        {isActive && playing ? (
+                          <div className="flex items-end gap-[2px] h-4">
+                            <span className="w-[3px] bg-white/80 rounded-full animate-[music-bar_0.8s_ease-in-out_infinite]" style={{ height: "60%" }} />
+                            <span className="w-[3px] bg-white/80 rounded-full animate-[music-bar_0.8s_ease-in-out_infinite_0.2s]" style={{ height: "100%" }} />
+                            <span className="w-[3px] bg-white/80 rounded-full animate-[music-bar_0.8s_ease-in-out_infinite_0.4s]" style={{ height: "40%" }} />
+                          </div>
+                        ) : (
+                          <Music className="h-5 w-5 text-white/70" />
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className={`truncate text-sm font-medium ${isActive ? "text-primary" : "text-foreground"}`}>
+                          {song.title}
+                        </p>
+                        <p className="truncate text-xs text-muted-foreground">{song.artist}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs tabular-nums text-muted-foreground">
+                          {song.duration ? fmtTime(song.duration) : "--:--"}
+                        </span>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); removeSong(song.id); }}
+                          className="shrink-0 text-muted-foreground/40 opacity-0 transition-all hover:text-destructive group-hover:opacity-100"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Mini player */}
+      {currentSong && !expanded && (
+        <div
+          className="mt-auto flex cursor-pointer items-center gap-3 rounded-2xl border border-border/50 bg-card/80 px-4 py-3 shadow-lg backdrop-blur-xl"
+          onClick={() => setExpanded(true)}
+        >
+          <div
+            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl"
+            style={{ background: `linear-gradient(135deg, ${currentSong.color[0]} 0%, ${currentSong.color[1]} 100%)` }}
+          >
+            <Music className="h-6 w-6 text-white/70" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-medium text-foreground">{currentSong.title}</p>
+            <p className="truncate text-xs text-muted-foreground">{currentSong.artist}</p>
+            <div className="mt-1 h-1 rounded-full bg-muted">
+              <div
+                className="h-full rounded-full bg-primary transition-[width] duration-200"
+                style={{ width: `${duration ? (progress / duration) * 100 : 0}%` }}
+              />
+            </div>
+          </div>
+          <button
+            onClick={(e) => { e.stopPropagation(); togglePlay(); }}
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground transition-transform active:scale-90"
+          >
+            {playing ? <Pause className="h-5 w-5" /> : <Play className="ml-0.5 h-5 w-5" />}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

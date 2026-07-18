@@ -144,3 +144,8 @@ body {
   }
 }
 
+@keyframes music-bar {
+  0%, 100% { transform: scaleY(0.4); }
+  50% { transform: scaleY(1); }
+}
+

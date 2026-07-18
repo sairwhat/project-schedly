@@ -26,6 +26,7 @@ export const navGroups: NavGroup[] = [
       { label: "Reminders", href: "/reminders", icon: "bell-ring" },
       { label: "GPA Calculator", href: "/gpa", icon: "graduation-cap" },
       { label: "Pomodoro Timer", href: "/pomodoro", icon: "timer" },
+      { label: "Music", href: "/music", icon: "music" },
     ],
   },
   {

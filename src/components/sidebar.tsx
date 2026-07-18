@@ -20,6 +20,7 @@ import {
   LifeBuoy,
   Timer,
   LayoutDashboard,
+  Music,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -42,6 +43,7 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   "life-buoy": LifeBuoy,
   timer: Timer,
   "layout-dashboard": LayoutDashboard,
+  music: Music,
 };
 
 function NavItemLink({ item, onNavigate }: { item: NavItem; onNavigate?: () => void }) {
