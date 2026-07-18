@@ -21,6 +21,16 @@ type VersionInfo = {
   updateMessage?: string;
 };
 
+type LogLine = {
+  ts: string;
+  level: "info" | "ok" | "err" | "warn";
+  text: string;
+};
+
+function now() {
+  return new Date().toLocaleTimeString("en-GB", { hour12: false });
+}
+
 export default function AdminApkPage() {
   const { user } = useAuth();
   const [versionName, setVersionName] = useState("");
@@ -31,16 +41,35 @@ export default function AdminApkPage() {
   const [message, setMessage] = useState<{ type: "ok" | "err"; text: string } | null>(
     null
   );
+  const [logs, setLogs] = useState<LogLine[]>([]);
+  const logEndRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const isAdmin = Boolean((user as Record<string, unknown> | null)?.isAdmin);
 
+  const pushLog = (level: LogLine["level"], text: string) => {
+    setLogs((prev) => [...prev, { ts: now(), level, text }]);
+  };
+
+  useEffect(() => {
+    logEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [logs]);
+
   useEffect(() => {
     if (!isAdmin) return;
+    pushLog("info", "Fetching current live version...");
     fetch("/api/admin/apk")
       .then((r) => (r.ok ? r.json() : null))
-      .then((d) => setCurrent(d?.current ?? null))
-      .catch(() => {});
+      .then((d) => {
+        const cur = d?.current ?? null;
+        setCurrent(cur);
+        if (cur?.versionName) {
+          pushLog("ok", `Current live version: v${cur.versionName} (code ${cur.versionCode})`);
+        } else {
+          pushLog("warn", "No release published yet.");
+        }
+      })
+      .catch(() => pushLog("err", "Failed to fetch current version."));
   }, [isAdmin]);
 
   if (!isAdmin) {
@@ -61,10 +90,14 @@ export default function AdminApkPage() {
   async function handleUpload() {
     if (!file || !versionName) {
       setMessage({ type: "err", text: "Version name and APK file are required." });
+      pushLog("err", "Validation failed: version name and APK file are required.");
       return;
     }
     setUploading(true);
     setMessage(null);
+    setLogs([]);
+    pushLog("info", `Preparing release v${versionName}...`);
+    pushLog("info", `File: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
     try {
       const apkKey = `releases/Schedly-${versionName.replace(/^v/i, "").trim()}-release.apk`;
       const clientPayload = JSON.stringify({
@@ -72,11 +105,23 @@ export default function AdminApkPage() {
         updateMessage: updateMessage || `New version ${versionName} is now available.`,
       });
 
+      pushLog("info", "Requesting upload token from server...");
       const blob = await upload(apkKey, file, {
         access: "public",
         handleUploadUrl: "/api/admin/apk-token",
         clientPayload,
+        onUploadProgress: ({ percentage }) => {
+          const pct = Math.round(percentage);
+          if (pct % 10 === 0 || pct === 100) {
+            pushLog("info", `Uploading... ${pct}%`);
+          }
+        },
       });
+
+      pushLog("ok", "APK uploaded to Blob storage.");
+      pushLog("info", "Server writing releases/version.json...");
+      pushLog("ok", `Published v${versionName} successfully.`);
+      pushLog("ok", `APK URL: ${blob.url}`);
 
       setMessage({ type: "ok", text: `Published v${versionName} successfully.` });
       setCurrent({
@@ -89,17 +134,24 @@ export default function AdminApkPage() {
       if (fileRef.current) fileRef.current.value = "";
     } catch (err) {
       console.error(err);
+      const text =
+        err instanceof Error ? err.message : "Network error during upload.";
+      pushLog("err", `Upload failed: ${text}`);
       setMessage({
         type: "err",
-        text:
-          err instanceof Error
-            ? `Upload failed: ${err.message}`
-            : "Network error during upload.",
+        text: `Upload failed: ${text}`,
       });
     } finally {
       setUploading(false);
     }
   }
+
+  const logColor: Record<LogLine["level"], string> = {
+    info: "text-slate-300",
+    ok: "text-green-400",
+    err: "text-red-400",
+    warn: "text-yellow-400",
+  };
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-10 space-y-6">
@@ -190,6 +242,33 @@ export default function AdminApkPage() {
           <Button onClick={handleUpload} disabled={uploading}>
             {uploading ? "Publishing..." : "Publish release"}
           </Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <span className="h-2 w-2 rounded-full bg-green-500" />
+            Build &amp; Upload Log
+          </CardTitle>
+          <CardDescription>
+            Live terminal output of the release process.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="max-h-72 overflow-y-auto rounded-lg bg-slate-950 p-3 font-mono text-xs leading-relaxed">
+            {logs.length === 0 ? (
+              <p className="text-slate-500">Waiting for action...</p>
+            ) : (
+              logs.map((l, i) => (
+                <div key={i} className="flex gap-2">
+                  <span className="shrink-0 text-slate-600">[{l.ts}]</span>
+                  <span className={logColor[l.level]}>{l.text}</span>
+                </div>
+              ))
+            )}
+            <div ref={logEndRef} />
+          </div>
         </CardContent>
       </Card>
     </div>
