@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Play,
@@ -15,9 +15,7 @@ import {
   Music,
   ListMusic,
   ChevronDown,
-  ChevronUp,
   Trash2,
-  Heart,
   Volume2,
   Volume1,
   VolumeX,
@@ -65,6 +63,10 @@ const STORE_NAME = "songs";
 
 function openDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
+    if (typeof indexedDB === "undefined") {
+      reject(new Error("IndexedDB not available"));
+      return;
+    }
     const req = indexedDB.open(DB_NAME, DB_VERSION);
     req.onupgradeneeded = () => req.result.createObjectStore(STORE_NAME, { keyPath: "id" });
     req.onsuccess = () => resolve(req.result);
@@ -118,10 +120,11 @@ export default function MusicPage() {
   const [loading, setLoading] = useState(true);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
-  const animFrameRef = useRef<number>(0);
 
   useEffect(() => {
-    loadSongs().then((s) => { setSongs(s); setLoading(false); });
+    loadSongs()
+      .then((s) => { setSongs(s); setLoading(false); })
+      .catch(() => { setSongs([]); setLoading(false); });
   }, []);
 
   useEffect(() => {
@@ -157,8 +160,9 @@ export default function MusicPage() {
 
   useEffect(() => {
     const a = audioRef.current;
-    if (!a || currentIndex < 0 || !songs[currentIndex]) return;
-    a.src = songs[currentIndex].data;
+    const song = currentIndex >= 0 ? songs[currentIndex] : null;
+    if (!a || !song) return;
+    a.src = song.data;
     a.load();
     if (playing) a.play().catch(() => setPlaying(false));
   }, [currentIndex]);
@@ -442,15 +446,18 @@ export default function MusicPage() {
               </div>
             ) : (
               <div className="space-y-0.5">
-                {filtered.map((song, i) => {
+                {filtered.map((song) => {
                   const realIndex = songs.indexOf(song);
                   const isActive = realIndex === currentIndex;
                   const grad = song.color;
                   return (
-                    <button
+                    <div
                       key={song.id}
+                      role="button"
+                      tabIndex={0}
                       onClick={() => playSong(realIndex)}
-                      className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-muted/50 ${
+                      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") playSong(realIndex); }}
+                      className={`group flex w-full cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-muted/50 ${
                         isActive ? "bg-primary/5" : ""
                       }`}
                     >
@@ -485,7 +492,7 @@ export default function MusicPage() {
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
                       </div>
-                    </button>
+                    </div>
                   );
                 })}
               </div>

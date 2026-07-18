@@ -22,6 +22,7 @@ const securityHeaders = [
       "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
       "style-src 'self' 'unsafe-inline'",
       `img-src 'self' data: blob: ${appUrl} https://*.blob.vercel-storage.com https://blob.vercel-storage.com`,
+      `media-src 'self' data: blob: ${appUrl} https://*.blob.vercel-storage.com https://blob.vercel-storage.com`,
       "font-src 'self'",
       `connect-src 'self' ${appUrl} https://*.blob.vercel-storage.com https://blob.vercel-storage.com`,
       "frame-ancestors 'none'",
