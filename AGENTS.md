@@ -82,3 +82,26 @@ Used by the existing in-app update system. Automatically updated by the release 
 }
 ```
 <!-- END:release-pipeline -->
+
+<!-- BEGIN:security -->
+# Security Guidelines
+
+## Secrets
+- **NEVER commit `.env` or `.env.local`** — they contain live production secrets
+- Only `.env.example` with placeholder values should be tracked
+- Real secrets are injected via Vercel dashboard env vars in production
+
+## Middleware
+- `src/middleware.ts` handles route protection (auth redirects, admin blocking, email verification)
+- Do NOT rename this file — Next.js only loads `middleware.ts`
+
+## CSP
+- `next.config.ts` dynamically generates CSP headers
+- `'unsafe-eval'` is removed in production — only included for dev
+- Rate limiting on upload (10/min) and feedback (5/min) per user
+
+## Upload Security
+- Magic byte detection (`src/server/lib/security.ts`) validates actual file content, not just MIME type
+- Allowed formats: JPEG, PNG, GIF, WebP, BMP
+- Max file size: 10MB
+<!-- END:security -->
