@@ -91,7 +91,6 @@ export default function MusicPage() {
   const audioRef = useRef<HTMLAudioElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const fileMapRef = useRef<Map<string, File>>(new Map());
-  const blobUrlsRef = useRef<Map<string, string>>(new Map());
 
   const currentIdRef = useRef<string | null>(null);
   const repeatModeRef = useRef<RepeatMode>("off");
@@ -168,34 +167,37 @@ export default function MusicPage() {
       return;
     }
 
-    const existing = blobUrlsRef.current.get(id);
-    if (existing) URL.revokeObjectURL(existing);
+    console.log("Loading file:", file.name, "type:", file.type, "size:", file.size);
 
-    let url: string;
-    try {
-      url = URL.createObjectURL(file);
-    } catch (e) {
-      const msg = `Failed to create blob URL: ${e}`;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const dataUrl = e.target?.result as string;
+      if (!dataUrl) {
+        const msg = "FileReader returned empty result";
+        console.error(msg);
+        setErrorMsg(msg);
+        return;
+      }
+      console.log("File read successfully, data URL length:", dataUrl.length);
+      setCurrentId(id);
+      el.src = dataUrl;
+      el.currentTime = 0;
+      el.play().then(() => {
+        console.log("Playback started successfully");
+        setErrorMsg(null);
+      }).catch((err) => {
+        const msg = `Playback failed: ${err.message || err}`;
+        console.error(msg);
+        setErrorMsg(msg);
+        setPlaying(false);
+      });
+    };
+    reader.onerror = () => {
+      const msg = "FileReader error: could not read file";
       console.error(msg);
       setErrorMsg(msg);
-      return;
-    }
-    blobUrlsRef.current.set(id, url);
-
-    console.log("Playing:", file.name, "URL:", url);
-    setCurrentId(id);
-    el.src = url;
-    el.currentTime = 0;
-
-    el.play().then(() => {
-      console.log("Playback started successfully");
-      setErrorMsg(null);
-    }).catch((err) => {
-      const msg = `Browser blocked playback: ${err.message || err}`;
-      console.error(msg);
-      setErrorMsg(msg);
-      setPlaying(false);
-    });
+    };
+    reader.readAsDataURL(file);
   }
 
   function handleSongClick(id: string) {
@@ -284,8 +286,6 @@ export default function MusicPage() {
   function handleDelete(id: string, e: React.MouseEvent) {
     e.stopPropagation();
     fileMapRef.current.delete(id);
-    const existing = blobUrlsRef.current.get(id);
-    if (existing) { URL.revokeObjectURL(existing); blobUrlsRef.current.delete(id); }
     const updated = songs.filter((s) => s.id !== id);
     setSongs(updated);
     saveAll(updated);
