@@ -87,64 +87,39 @@ export default function AdminApkPage() {
   }
 
   async function handleUpload() {
-    const selectedFile = file ?? fileRef.current?.files?.[0] ?? null;
     const cleanVersion = versionName.trim();
-    if (!selectedFile || !cleanVersion) {
-      setMessage({ type: "err", text: "Version name and APK file are required." });
-      pushLog("err", `Validation failed: version="${cleanVersion}" file=${selectedFile ? selectedFile.name : "none"}`);
+    if (!cleanVersion) {
+      setMessage({ type: "err", text: "Version name is required." });
+      pushLog("err", "Validation failed: version name is required.");
       return;
     }
     setUploading(true);
     setMessage(null);
     setLogs([]);
-    pushLog("info", `Preparing release v${cleanVersion}...`);
-    pushLog("info", `File: ${selectedFile.name} (${(selectedFile.size / 1024 / 1024).toFixed(2)} MB)`);
+    const clean = cleanVersion.replace(/^v/i, "").trim();
+    pushLog("info", `Preparing release v${clean}...`);
+    pushLog("info", `Source: apk/Schedly-${clean}-release.apk (from repo)`);
     try {
-      pushLog("info", "Uploading to Blob via server...");
-
-      let lastLogged = -1;
-      const result = await new Promise<{ ok: boolean; url?: string; error?: string }>(
-        (resolve, reject) => {
-          const xhr = new XMLHttpRequest();
-          xhr.open("POST", "/api/admin/apk-upload");
-          xhr.setRequestHeader("Content-Type", "application/octet-stream");
-          xhr.setRequestHeader("x-version-name", cleanVersion);
-          xhr.setRequestHeader("x-update-message", updateMessage);
-          xhr.upload.onprogress = (e) => {
-            if (e.lengthComputable) {
-              const p = Math.round((e.loaded / e.total) * 100);
-              if (p - lastLogged >= 10 || p === 100) {
-                pushLog("info", `Uploading... ${p}%`);
-                lastLogged = p;
-              }
-            }
-          };
-          xhr.onload = () => {
-            try {
-              const body = JSON.parse(xhr.responseText);
-              if (xhr.status >= 200 && xhr.status < 300 && body.ok) {
-                resolve(body);
-              } else {
-                reject(new Error(body.error || `Server error ${xhr.status}`));
-              }
-            } catch {
-              reject(new Error(`Server error ${xhr.status}`));
-            }
-          };
-          xhr.onerror = () => reject(new Error("Network error during upload."));
-          xhr.send(selectedFile);
-        }
-      );
+      pushLog("info", "Server fetching APK and uploading to Blob...");
+      const res = await fetch("/api/admin/apk-upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ versionName: clean, updateMessage }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok || !body.ok) {
+        throw new Error(body.error || `Server error ${res.status}`);
+      }
 
       pushLog("ok", "APK uploaded to Blob storage.");
       pushLog("ok", "Server wrote releases/version.json.");
-      pushLog("ok", `Published v${cleanVersion} successfully.`);
-      pushLog("ok", `APK URL: ${result.url}`);
+      pushLog("ok", `Published v${clean} successfully.`);
+      pushLog("ok", `APK URL: ${body.url}`);
 
       setMessage({ type: "ok", text: `Published v${cleanVersion} successfully.` });
       setCurrent({
-        versionName: cleanVersion.replace(/^v/i, "").trim(),
-        apkUrl: result.url,
+        versionName: clean,
+        apkUrl: body.url,
       });
       setFile(null);
       setVersionName("");
@@ -230,7 +205,12 @@ export default function AdminApkPage() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="apk">APK file</Label>
+            <Label htmlFor="apk">APK file (in repo)</Label>
+            <p className="text-xs text-muted-foreground">
+              The APK is read from <code>apk/Schedly-{`{version}`}-release.apk</code> in the
+              repository, then published to Blob storage. Optional: pick the local file to verify
+              it exists.
+            </p>
             <input
               id="apk"
               ref={fileRef}

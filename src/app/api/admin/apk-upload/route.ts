@@ -31,23 +31,29 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const versionName = String(request.headers.get("x-version-name") || "").trim();
+    const { versionName, updateMessage: rawMessage, apkUrl } = await request.json();
+    const clean = String(versionName || "").replace(/^v/i, "").trim();
     const updateMessage =
-      String(request.headers.get("x-update-message") || "").trim() ||
-      `New version ${versionName} is now available.`;
+      String(rawMessage || "").trim() || `New version ${clean} is now available.`;
 
-    const body = request.body;
-    if (!body || !versionName) {
+    if (!clean) {
+      return NextResponse.json({ error: "Version name is required." }, { status: 400 });
+    }
+
+    const apkKey = `releases/Schedly-${clean}-release.apk`;
+    const sourceUrl =
+      String(apkUrl || "").trim() ||
+      `https://github.com/sairwhat/project-schedly/raw/master/apk/Schedly-${clean}-release.apk`;
+
+    const res = await fetch(sourceUrl);
+    if (!res.ok || !res.body) {
       return NextResponse.json(
-        { error: "Version name and APK file are required." },
-        { status: 400 }
+        { error: `Could not fetch APK from source (${res.status}).` },
+        { status: 502 }
       );
     }
 
-    const clean = versionName.replace(/^v/i, "").trim();
-    const apkKey = `releases/Schedly-${clean}-release.apk`;
-
-    const blob = await put(apkKey, body as unknown as ReadableStream, {
+    const blob = await put(apkKey, res.body as unknown as ReadableStream, {
       access: "public",
       addRandomSuffix: false,
       token: BLOB_TOKEN,
