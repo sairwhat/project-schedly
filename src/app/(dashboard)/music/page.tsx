@@ -128,18 +128,21 @@ export default function MusicPage() {
   }, []);
 
   useEffect(() => {
-    audioRef.current = new Audio();
-    const a = audioRef.current;
-    a.volume = volume;
+    let a: HTMLAudioElement;
+    try {
+      a = new Audio();
+    } catch {
+      return;
+    }
+    audioRef.current = a;
+    a.volume = muted ? 0 : volume;
 
-    const onTime = () => {
-      setProgress(a.currentTime);
-    };
+    const onTime = () => setProgress(a.currentTime);
     const onDuration = () => setDuration(a.duration || 0);
     const onEnd = () => {
       if (repeat === "one") {
         a.currentTime = 0;
-        a.play();
+        a.play().catch(() => {});
       } else {
         nextTrack();
       }
@@ -156,15 +159,21 @@ export default function MusicPage() {
       a.pause();
       a.src = "";
     };
-  }, [currentIndex, repeat, songs]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [repeat, songs]);
 
   useEffect(() => {
     const a = audioRef.current;
     const song = currentIndex >= 0 ? songs[currentIndex] : null;
     if (!a || !song) return;
-    a.src = song.data;
-    a.load();
-    if (playing) a.play().catch(() => setPlaying(false));
+    try {
+      a.src = song.data;
+      a.load();
+      if (playing) a.play().catch(() => setPlaying(false));
+    } catch {
+      queueMicrotask(() => setPlaying(false));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentIndex]);
 
   useEffect(() => {
@@ -245,38 +254,34 @@ export default function MusicPage() {
     setShowUploading(true);
     Array.from(files).forEach((file) => {
       const reader = new FileReader();
-      reader.onload = async (ev) => {
+      reader.onload = (ev) => {
         const data = ev.target?.result as string;
+        if (!data) return;
         const title = file.name.replace(/\.[^/.]+$/, "");
-        const audio = new Audio(data);
-        audio.addEventListener("loadedmetadata", async () => {
+        const addSong = (duration: number) => {
           const song: Song = {
             id: crypto.randomUUID(),
             title,
             artist: "Unknown Artist",
-            duration: audio.duration,
+            duration,
             data,
             uploadedAt: Date.now(),
             color: getColor(title),
           };
-          await saveSong(song);
+          saveSong(song).catch(() => {});
           setSongs((prev) => [...prev, song]);
-        });
-        audio.addEventListener("error", () => {
-          const song: Song = {
-            id: crypto.randomUUID(),
-            title,
-            artist: "Unknown Artist",
-            duration: 0,
-            data,
-            uploadedAt: Date.now(),
-            color: getColor(title),
-          };
-          saveSong(song);
-          setSongs((prev) => [...prev, song]);
-        });
-        audio.load();
+        };
+        try {
+          const audio = new Audio(data);
+          const done = () => addSong(isFinite(audio.duration) ? audio.duration : 0);
+          audio.addEventListener("loadedmetadata", done, { once: true });
+          audio.addEventListener("error", () => addSong(0), { once: true });
+          audio.load();
+        } catch {
+          addSong(0);
+        }
       };
+      reader.onerror = () => {};
       reader.readAsDataURL(file);
     });
     e.target.value = "";
