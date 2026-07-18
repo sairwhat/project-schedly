@@ -24,6 +24,7 @@ import {
   LayoutDashboard,
   Music,
   UploadCloud,
+  StickyNote,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -48,6 +49,7 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   "layout-dashboard": LayoutDashboard,
   music: Music,
   "upload-cloud": UploadCloud,
+  "sticky-note": StickyNote,
 };
 
 function NavItemLink({ item, onNavigate }: { item: NavItem; onNavigate?: () => void }) {
