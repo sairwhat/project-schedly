@@ -31,12 +31,6 @@ export const navGroups: NavGroup[] = [
     ],
   },
   {
-    title: "Support",
-    items: [
-      { label: "Notifications", href: "/notifications", icon: "bell" },
-    ],
-  },
-  {
     title: "Admin",
     items: [
       { label: "APK Releases", href: "/admin/apk", icon: "upload-cloud", adminOnly: true },
