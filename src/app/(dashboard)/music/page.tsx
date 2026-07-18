@@ -242,6 +242,28 @@ export default function MusicPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentSong, playing, songs, shuffle, repeat]);
 
+  function updateMediaSession() {
+    if (typeof navigator === "undefined" || !("mediaSession" in navigator)) return;
+    const ms = navigator.mediaSession;
+    const song = currentIndex >= 0 ? songs[currentIndex] : null;
+    if (!song) {
+      try {
+        ms.metadata = null;
+        ms.playbackState = "none";
+      } catch {}
+      return;
+    }
+    try {
+      ms.metadata = new MediaMetadata({
+        title: song.title,
+        artist: song.artist,
+        album: song.album || "Schedly Music",
+        artwork: [{ src: makeArtwork(song.color), sizes: "256x256", type: "image/png" }],
+      });
+      ms.playbackState = playing ? "playing" : "paused";
+    } catch {}
+  }
+
   function playSong(index: number) {
     if (index < 0 || index >= songs.length) return;
     if (index === currentIndex && playing) return;
@@ -249,6 +271,11 @@ export default function MusicPage() {
     setPlaying(true);
     setProgress(0);
     setDuration(0);
+    if (typeof navigator !== "undefined" && "mediaSession" in navigator) {
+      try {
+        navigator.mediaSession.playbackState = "playing";
+      } catch {}
+    }
   }
 
   function togglePlay() {
@@ -259,8 +286,17 @@ export default function MusicPage() {
     if (playing) {
       audioRef.current.pause();
       setPlaying(false);
+      if (typeof navigator !== "undefined" && "mediaSession" in navigator) {
+        try { navigator.mediaSession.playbackState = "paused"; } catch {}
+      }
     } else {
-      audioRef.current.play().catch(() => setPlaying(false));
+      audioRef.current.play()
+        .then(() => {
+          if (typeof navigator !== "undefined" && "mediaSession" in navigator) {
+            try { navigator.mediaSession.playbackState = "playing"; } catch {}
+          }
+        })
+        .catch(() => setPlaying(false));
       setPlaying(true);
     }
   }
