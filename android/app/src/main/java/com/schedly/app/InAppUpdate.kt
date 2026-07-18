@@ -88,8 +88,16 @@ class InAppUpdate : Plugin() {
         }.start()
     }
 
-    private fun showUpdateDialog(versionName: String, message: String, apkUrl: String) {
+    private fun showErrorToast(message: String) {
         val activity = activity ?: return
+        activity.runOnUiThread {
+            android.widget.Toast
+                .makeText(activity, message, android.widget.Toast.LENGTH_LONG)
+                .show()
+        }
+    }
+
+    private fun showUpdateDialog(versionName: String, message: String, apkUrl: String) {        val activity = activity ?: return
         AlertDialog.Builder(activity)
             .setTitle("Update Available")
             .setMessage("Version $versionName is now available.\n\n$message")
@@ -142,13 +150,24 @@ class InAppUpdate : Plugin() {
                             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                         }
-                        activity.startActivity(intent)
+                        try {
+                            activity.startActivity(intent)
+                        } catch (ie: Exception) {
+                            Log.e("InAppUpdate", "Failed to launch installer: ${ie.message}", ie)
+                            showErrorToast("Could not start installer. Enable 'Install unknown apps' for Schedly.")
+                        }
                     }
                 } else {
                     Log.e("InAppUpdate", "Activity is null, cannot launch installer")
                 }
             } catch (e: Exception) {
                 Log.e("InAppUpdate", "Error downloading APK: ${e.message}", e)
+                val activity = activity
+                if (activity != null) {
+                    activity.runOnUiThread {
+                        showErrorToast("Download failed: ${e.message ?: "unknown error"}")
+                    }
+                }
             }
         }.start()
     }

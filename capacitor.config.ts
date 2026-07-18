@@ -24,7 +24,7 @@ const config: CapacitorConfig = {
       resizeOnFullScreen: true,
     },
     InAppUpdate: {
-      versionUrl: "https://raw.githubusercontent.com/sairwhat/project-schedly/master/version.json",
+      versionUrl: "https://app.schedly.shop/api/version",
     },
   },
   android: {

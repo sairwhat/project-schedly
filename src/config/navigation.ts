@@ -3,6 +3,7 @@ export interface NavItem {
   href: string;
   icon: string;
   badge?: number;
+  adminOnly?: boolean;
 }
 
 export interface NavGroup {
@@ -34,6 +35,12 @@ export const navGroups: NavGroup[] = [
     items: [
       { label: "Notifications", href: "/notifications", icon: "bell" },
       { label: "Help & Feedback", href: "/feedback", icon: "life-buoy" },
+    ],
+  },
+  {
+    title: "Admin",
+    items: [
+      { label: "APK Releases", href: "/admin/apk", icon: "upload-cloud", adminOnly: true },
     ],
   },
 ];

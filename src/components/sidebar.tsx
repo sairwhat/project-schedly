@@ -21,6 +21,7 @@ import {
   Timer,
   LayoutDashboard,
   Music,
+  UploadCloud,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -44,6 +45,7 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   timer: Timer,
   "layout-dashboard": LayoutDashboard,
   music: Music,
+  "upload-cloud": UploadCloud,
 };
 
 function NavItemLink({ item, onNavigate }: { item: NavItem; onNavigate?: () => void }) {
@@ -179,9 +181,11 @@ export function Sidebar({ onClose }: { onClose?: () => void }) {
               {group.title}
             </p>
             <div className="space-y-0.5">
-              {group.items.map((item) => (
-                <NavItemLink key={item.href} item={item} onNavigate={onClose} />
-              ))}
+              {group.items
+                .filter((item) => !item.adminOnly || u?.isAdmin)
+                .map((item) => (
+                  <NavItemLink key={item.href} item={item} onNavigate={onClose} />
+                ))}
             </div>
           </div>
         ))}
