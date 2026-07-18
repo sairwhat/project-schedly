@@ -114,7 +114,7 @@ export default function AdminPage() {
   }
 
   return (
-    <div className="flex h-[calc(100vh-2rem)] flex-col p-4 sm:p-6">
+    <div className="space-y-6 p-4 sm:p-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
           Admin Dashboard
@@ -133,12 +133,12 @@ export default function AdminPage() {
         </div>
       )}
 
-      <Card className="flex min-h-0 flex-1 flex-col border-border/50">
+      <Card className="border-border/50">
         <CardHeader>
           <CardTitle className="text-base">Users</CardTitle>
         </CardHeader>
-        <CardContent className="flex min-h-0 flex-1 flex-col">
-          <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+        <CardContent>
+          <div className="max-h-[360px] overflow-y-auto pr-1">
           {/* Desktop table */}
           <div className="hidden overflow-x-auto sm:block">
             <table className="w-full text-sm">
