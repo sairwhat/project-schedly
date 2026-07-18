@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Capacitor, registerPlugin } from "@capacitor/core";
+import html2canvas from "html2canvas";
 import { useAuth } from "@/features/auth/hooks/use-auth";
 import { getUserSchedules } from "@/app/(dashboard)/schedule/actions";
 import { SchedulePreview } from "@/features/schedule/components/schedule-preview";
@@ -104,6 +105,7 @@ export default function DashboardPage() {
   const [schedules, setSchedules] = useState<ScheduleData[] | null>(null);
   const [greeting, setGreeting] = useState("Good day");
   const [downloading, setDownloading] = useState(false);
+  const scheduleRef = useRef<HTMLDivElement>(null);
 
   const firstName = (user as { firstName?: string } | null)?.firstName || "User";
 
@@ -127,120 +129,34 @@ export default function DashboardPage() {
   const activeTodos = todos.filter((t) => !t.completed).length;
 
   const handleDownload = async () => {
-    if (!allClasses.length) return;
+    const node = scheduleRef.current;
+    if (!node) return;
     setDownloading(true);
     try {
-      const DAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"] as const;
-      const DAY_LABELS: Record<string, string> = {
-        monday: "Mon", tuesday: "Tue", wednesday: "Wed", thursday: "Thu",
-        friday: "Fri", saturday: "Sat", sunday: "Sun",
-      };
+      const canvas = await html2canvas(node, {
+        backgroundColor: null,
+        scale: 2,
+        useCORS: true,
+        logging: false,
+      });
 
-      const activeDays = DAYS.filter((d) => allClasses.some((c) => c.days.includes(d)));
-      if (!activeDays.length) return;
+      const radius = 24;
+      const rounded = document.createElement("canvas");
+      rounded.width = canvas.width;
+      rounded.height = canvas.height;
+      const rctx = rounded.getContext("2d")!;
+      rctx.clearRect(0, 0, rounded.width, rounded.height);
+      rctx.beginPath();
+      rctx.moveTo(radius, 0);
+      rctx.arcTo(rounded.width, 0, rounded.width, rounded.height, radius);
+      rctx.arcTo(rounded.width, rounded.height, 0, rounded.height, radius);
+      rctx.arcTo(0, rounded.height, 0, 0, radius);
+      rctx.arcTo(0, 0, rounded.width, 0, radius);
+      rctx.closePath();
+      rctx.clip();
+      rctx.drawImage(canvas, 0, 0);
 
-      const toMin = (d: Date) => new Date(d).getHours() * 60 + new Date(d).getMinutes();
-      const fmt12h = (m: number) => {
-        const h24 = Math.floor(m / 60);
-        const h = h24 % 12 || 12;
-        const mm = m % 60;
-        return `${h}:${String(mm).padStart(2, "0")} ${h24 < 12 ? "AM" : "PM"}`;
-      };
-
-      const slots = [...new Set(allClasses.map((c) => toMin(c.startTime)))].sort((a, b) => a - b);
-      const classesAt = (day: string, slot: number) =>
-        allClasses.filter((c) => c.days.includes(day as typeof allClasses[0]["days"][number]) && toMin(c.startTime) === slot);
-
-      const COLS = activeDays.length;
-      const LABEL_H = 40;
-      const ROW_H = 56;
-      const COL_W = 140;
-      const PAD = 24;
-      const HEADER_H = 60;
-      const W = PAD * 2 + COLS * COL_W;
-      const H = PAD + HEADER_H + LABEL_H + slots.length * ROW_H + PAD;
-
-      const canvas = document.createElement("canvas");
-      canvas.width = W * 2;
-      canvas.height = H * 2;
-      const ctx = canvas.getContext("2d")!;
-      ctx.scale(2, 2);
-
-      ctx.fillStyle = "#ffffff";
-      ctx.fillRect(0, 0, W, H);
-
-      ctx.fillStyle = "#111827";
-      ctx.font = "bold 18px system-ui, sans-serif";
-      ctx.textAlign = "center";
-      ctx.fillText("Schedule", W / 2, PAD + 24);
-
-      const colX = (i: number) => PAD + i * COL_W;
-
-      ctx.fillStyle = "#fdf2f8";
-      for (let i = 0; i < COLS; i++) {
-        ctx.fillRect(colX(i), PAD + HEADER_H, COL_W, LABEL_H);
-      }
-      ctx.fillStyle = "#be185d";
-      ctx.font = "bold 12px system-ui, sans-serif";
-      for (let i = 0; i < COLS; i++) {
-        ctx.textAlign = "center";
-        ctx.fillText(DAY_LABELS[activeDays[i]!] || activeDays[i]!, colX(i) + COL_W / 2, PAD + HEADER_H + 26);
-      }
-
-      for (let r = 0; r < slots.length; r++) {
-        const y = PAD + HEADER_H + LABEL_H + r * ROW_H;
-        for (let i = 0; i < COLS; i++) {
-          const items = classesAt(activeDays[i]!, slots[r]!);
-          if (items.length === 0) {
-            ctx.fillStyle = "#f9fafb";
-            ctx.fillRect(colX(i), y, COL_W, ROW_H);
-          } else {
-            for (const cls of items) {
-              const color = cls.color || "#be185d";
-              ctx.fillStyle = color + "1f";
-              ctx.fillRect(colX(i) + 2, y + 2, COL_W - 4, ROW_H - 4);
-              ctx.strokeStyle = color;
-              ctx.lineWidth = 2;
-              ctx.strokeRect(colX(i) + 2, y + 2, COL_W - 4, ROW_H - 4);
-
-              ctx.fillStyle = color;
-              ctx.font = "bold 10px system-ui, sans-serif";
-              ctx.textAlign = "center";
-              const label = cls.code || cls.subject;
-              const maxW = COL_W - 12;
-              const displayLabel = ctx.measureText(label).width > maxW
-                ? label.slice(0, Math.floor((maxW / ctx.measureText(label).width) * label.length)) + "…"
-                : label;
-              ctx.fillText(displayLabel, colX(i) + COL_W / 2, y + 22);
-
-              ctx.fillStyle = "#6b7280";
-              ctx.font = "9px system-ui, sans-serif";
-              ctx.fillText(
-                `${fmt12h(toMin(cls.startTime))}–${fmt12h(toMin(cls.endTime))}`,
-                colX(i) + COL_W / 2,
-                y + 36
-              );
-            }
-          }
-        }
-
-        ctx.fillStyle = "#9ca3af";
-        ctx.font = "10px system-ui, sans-serif";
-        ctx.textAlign = "right";
-        ctx.fillText(fmt12h(slots[r]!), PAD - 6, PAD + HEADER_H + LABEL_H + r * ROW_H + 20);
-      }
-
-      ctx.strokeStyle = "#e5e7eb";
-      ctx.lineWidth = 1;
-      for (let r = 0; r <= slots.length; r++) {
-        const y = PAD + HEADER_H + LABEL_H + r * ROW_H;
-        ctx.beginPath();
-        ctx.moveTo(PAD, y);
-        ctx.lineTo(PAD + COLS * COL_W, y);
-        ctx.stroke();
-      }
-
-      const dataUrl = canvas.toDataURL("image/png");
+      const dataUrl = rounded.toDataURL("image/png");
 
       if (Capacitor.isNativePlatform()) {
         const base64 = dataUrl.split(",")[1] || "";
@@ -411,7 +327,7 @@ export default function DashboardPage() {
             </Button>
           </div>
         ) : (
-          <div>
+          <div ref={scheduleRef}>
             <SchedulePreview classes={allClasses} filename="schedule.png" />
           </div>
         )}
