@@ -3,7 +3,7 @@ import { auth } from "@/server/lib/auth";
 import { type NextRequest, NextResponse } from "next/server";
 
 const publicRoutes = ["/login", "/register", "/"];
-const publicApiRoutes = ["/api/auth"];
+const publicApiRoutes = ["/api/auth", "/api/version"];
 const verificationRoutes = ["/verify-email"];
 const emailVerificationEnabled = process.env.RESEND_API_KEY === "true" || !!process.env.RESEND_API_KEY;
 
