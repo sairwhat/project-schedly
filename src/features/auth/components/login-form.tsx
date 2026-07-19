@@ -46,29 +46,35 @@ export function LoginForm() {
 
     setLoading(true);
 
-    const captchaResult = await verifyCaptcha(turnstileToken);
-    if (!captchaResult.success) {
-      setServerError("Bot verification failed. Please try again.");
-      setLoading(false);
-      return;
-    }
-
-    const signInResult = await signIn(result.data);
-
-    if (signInResult.error) {
-      const msg = signInResult.error.message || "";
-      if (msg.includes("locked") || msg.includes("too many")) {
-        setServerError("Account temporarily locked due to too many failed attempts. Please try again later.");
-      } else if (msg.includes("Invalid") || msg.includes("invalid")) {
-        setServerError("Invalid email or password.");
-      } else {
-        setServerError(msg || "Sign in failed. Please try again.");
+    try {
+      const captchaResult = await verifyCaptcha(turnstileToken);
+      if (!captchaResult.success) {
+        setServerError("Bot verification failed. Please try again.");
+        setLoading(false);
+        return;
       }
-      setLoading(false);
-      return;
-    }
 
-    router.push(callbackUrl);
+      const signInResult = await signIn(result.data);
+
+      if (signInResult.error) {
+        const msg = signInResult.error.message || "";
+        if (msg.includes("locked") || msg.includes("too many")) {
+          setServerError("Account temporarily locked due to too many failed attempts. Please try again later.");
+        } else if (msg.includes("Invalid") || msg.includes("invalid")) {
+          setServerError("Invalid email or password.");
+        } else {
+          setServerError(msg || "Sign in failed. Please try again.");
+        }
+        setLoading(false);
+        return;
+      }
+
+      router.push(callbackUrl);
+    } catch (err) {
+      console.error("[LoginForm] Unexpected error:", err);
+      setServerError("Something went wrong. Please try again.");
+      setLoading(false);
+    }
   }
 
   return (

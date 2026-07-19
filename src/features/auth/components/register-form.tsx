@@ -97,31 +97,37 @@ export function RegisterForm() {
 
     setLoading(true);
 
-    setCheckingBreach(true);
-    const breachCount = await isPasswordBreached(form.password);
-    setCheckingBreach(false);
-    if (breachCount > 0) {
-      setBreachedCount(breachCount);
+    try {
+      setCheckingBreach(true);
+      const breachCount = await isPasswordBreached(form.password).catch(() => 0);
+      setCheckingBreach(false);
+      if (breachCount > 0) {
+        setBreachedCount(breachCount);
+        setLoading(false);
+        return;
+      }
+
+      const captchaResult = await verifyCaptcha(turnstileToken);
+      if (!captchaResult.success) {
+        setServerError("Bot verification failed. Please try again.");
+        setLoading(false);
+        return;
+      }
+
+      const signUpResult = await signUp(form);
+
+      if (signUpResult.error) {
+        setServerError(signUpResult.error.message || "Registration failed. Please try again.");
+        setLoading(false);
+        return;
+      }
+
+      router.push(`/verify-email/pending?email=${encodeURIComponent(form.email)}`);
+    } catch (err) {
+      console.error("[RegisterForm] Unexpected error:", err);
+      setServerError("Something went wrong. Please try again.");
       setLoading(false);
-      return;
     }
-
-    const captchaResult = await verifyCaptcha(turnstileToken);
-    if (!captchaResult.success) {
-      setServerError("Bot verification failed. Please try again.");
-      setLoading(false);
-      return;
-    }
-
-    const signUpResult = await signUp(form);
-
-    if (signUpResult.error) {
-      setServerError(signUpResult.error.message || "Registration failed. Please try again.");
-      setLoading(false);
-      return;
-    }
-
-    router.push(`/verify-email/pending?email=${encodeURIComponent(form.email)}`);
   }
 
   const passwordStrength = form.password

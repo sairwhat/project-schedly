@@ -2,7 +2,8 @@ import { type NextRequest, NextResponse } from "next/server";
 import { put } from "@vercel/blob";
 import { auth } from "@/server/lib/auth";
 import { db } from "@/server/db/client";
-import { extractScheduleFromImage } from "@/server/lib/ai";
+import { extractScheduleFromImage, extractScheduleFromText } from "@/server/lib/ai";
+import { ocrImage } from "@/server/lib/ocr";
 import { extractionResultSchema } from "@/server/validators/ai.schema";
 import { detectImageMime, checkRateLimit, validateCsrf } from "@/server/lib/security";
 import { auditLog } from "@/server/lib/audit";
@@ -95,25 +96,50 @@ export async function POST(request: NextRequest) {
 
     if (process.env.OPENROUTER_API_KEY) {
       try {
-        const origin = new URL(request.url).origin;
-        const absoluteUrl = stored.url.startsWith("http")
-          ? stored.url
-          : `${origin}${stored.url}`;
-        const raw = await extractScheduleFromImage(absoluteUrl);
-        const parsed = extractionResultSchema.parse(raw);
+        const ocrText = await ocrImage(Buffer.from(buffer));
+        console.log("[UPLOAD_API] OCR text:", ocrText.substring(0, 200));
 
-        const validClasses = parsed.classes.filter(
-          (c) => c.subject && c.days.length > 0 && c.startTime && c.endTime
-        );
+        if (ocrText.length > 20) {
+          const raw = await extractScheduleFromText(ocrText);
+          const parsed = extractionResultSchema.parse(raw);
 
-        classes = validClasses;
-        metadata = {
-          totalClasses: validClasses.length,
-          confidence: parsed.metadata.confidence,
-          notes: parsed.metadata.notes,
-        };
-      } catch (aiErr) {
-        console.error("[UPLOAD_API] AI extraction error:", aiErr);
+          const validClasses = parsed.classes.filter(
+            (c) => c.subject && c.days.length > 0 && c.startTime && c.endTime
+          );
+
+          classes = validClasses;
+          metadata = {
+            totalClasses: validClasses.length,
+            confidence: parsed.metadata.confidence,
+            notes: parsed.metadata.notes,
+          };
+        } else {
+          metadata.notes = "OCR returned insufficient text — try a clearer image.";
+        }
+      } catch (ocrAiErr) {
+        console.error("[UPLOAD_API] OCR+AI extraction error, falling back to vision AI:", ocrAiErr);
+
+        try {
+          const origin = new URL(request.url).origin;
+          const absoluteUrl = stored.url.startsWith("http")
+            ? stored.url
+            : `${origin}${stored.url}`;
+          const raw = await extractScheduleFromImage(absoluteUrl);
+          const parsed = extractionResultSchema.parse(raw);
+
+          const validClasses = parsed.classes.filter(
+            (c) => c.subject && c.days.length > 0 && c.startTime && c.endTime
+          );
+
+          classes = validClasses;
+          metadata = {
+            totalClasses: validClasses.length,
+            confidence: parsed.metadata.confidence,
+            notes: parsed.metadata.notes,
+          };
+        } catch (visionErr) {
+          console.error("[UPLOAD_API] Vision AI fallback also failed:", visionErr);
+        }
       }
     } else {
       metadata.notes = "AI extraction not configured — add classes manually.";

@@ -1,6 +1,15 @@
 const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
 
-const FALLBACK_MODELS = [
+const TEXT_MODELS = [
+  "openai/gpt-oss-20b:free",
+  "google/gemma-4-26b-a4b-it:free",
+  "google/gemma-4-31b-it:free",
+  "nvidia/llama-nemotron-rerank-vl-1b-v2:free",
+  "nvidia/nemotron-3.5-content-safety:free",
+  "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+];
+
+const VISION_MODELS = [
   "google/gemma-4-26b-a4b-it:free",
   "google/gemma-4-31b-it:free",
   "nvidia/llama-nemotron-rerank-vl-1b-v2:free",
@@ -10,7 +19,7 @@ const FALLBACK_MODELS = [
 
 const RETRY_DELAYS = [1000, 3000];
 
-const SCHEDULE_EXTRACTION_PROMPT = `You are a schedule extraction AI. Analyze the provided image of a class schedule and extract all classes into structured JSON.
+const SCHEDULE_EXTRACTION_PROMPT = `You are a schedule extraction AI. Analyze the provided class schedule text and extract all classes into structured JSON.
 
 For each class, extract:
 - subject: The full name of the subject/course
@@ -48,9 +57,11 @@ Rules:
 - Use lowercase for days (monday, tuesday, wednesday, thursday, friday, saturday, sunday)
 - Use 24-hour time format (HH:MM)
 - If a field is not visible, set it to null
-- If the image is not a schedule, return {"classes": [], "metadata": {"totalClasses": 0, "confidence": 0, "notes": "not_a_schedule"}}
+- If the text is not a schedule, return {"classes": [], "metadata": {"totalClasses": 0, "confidence": 0, "notes": "not_a_schedule"}}
 - Extract ALL visible classes, even if partially visible
-- Do not include any text before or after the JSON`;
+- Do not include any text before or after the JSON
+
+Here is the extracted text from the schedule image:`;
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -73,7 +84,49 @@ async function fetchImageAsBase64(imageUrl: string) {
   return { base64, contentType };
 }
 
-async function callOpenRouter(model: string, base64: string, contentType: string) {
+async function callOpenRouterText(model: string, text: string) {
+  const apiKey = process.env.OPENROUTER_API_KEY;
+
+  const response = await fetch(OPENROUTER_API_URL, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+      "HTTP-Referer": process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
+      "X-Title": "Schedly",
+    },
+    body: JSON.stringify({
+      model,
+      messages: [
+        {
+          role: "user",
+          content: SCHEDULE_EXTRACTION_PROMPT + "\n\n" + text,
+        },
+      ],
+      temperature: 0.1,
+      max_tokens: 4096,
+    }),
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    const status = response.status;
+    const msg = data?.error?.message || "Unknown";
+    console.error(`[AI] API error: ${status} on ${model}:`, msg);
+
+    if (status === 429) {
+      const retryAfter = data?.error?.metadata?.retry_after_seconds_raw || 10;
+      throw { code: "RATE_LIMITED", model, retryAfter, message: msg };
+    }
+
+    throw new Error(`AI API error: ${status} - ${msg}`);
+  }
+
+  return data;
+}
+
+async function callOpenRouterVision(model: string, base64: string, contentType: string) {
   const apiKey = process.env.OPENROUTER_API_KEY;
 
   const response = await fetch(OPENROUTER_API_URL, {
@@ -150,54 +203,72 @@ function parseAiResponse(data: unknown) {
   return JSON.parse(jsonMatch[0]) as unknown;
 }
 
-export async function extractScheduleFromImage(imageUrl: string) {
-  const apiKey = process.env.OPENROUTER_API_KEY;
+function withRetry<T>(
+  call: (model: string) => Promise<T>,
+  models: string[],
+): { run: () => Promise<T> } {
+  return {
+    async run() {
+      let lastError: unknown;
+      for (const model of models) {
+        for (let attempt = 0; attempt <= RETRY_DELAYS.length; attempt++) {
+          try {
+            console.log(`[AI] Attempt ${attempt + 1}/${RETRY_DELAYS.length + 1} with model: ${model}`);
+            return await call(model);
+          } catch (err) {
+            lastError = err;
+            if (err && typeof err === "object" && "code" in err && (err as { code: unknown }).code === "RATE_LIMITED") {
+              const rateErr = err as unknown as { retryAfter: number; model: string };
+              console.log(`[AI] Rate limited on ${rateErr.model}, retrying in ${rateErr.retryAfter}s or switching model`);
+              if (attempt < RETRY_DELAYS.length) {
+                const delay = Math.min(Math.max(rateErr.retryAfter * 1000, RETRY_DELAYS[attempt]!), 5000);
+                console.log(`[AI] Waiting ${delay}ms before retry ${attempt + 2}...`);
+                await sleep(delay);
+                continue;
+              }
+              break;
+            }
+            if (attempt < RETRY_DELAYS.length) {
+              console.log(`[AI] Transient error, retrying in ${RETRY_DELAYS[attempt]}ms...`);
+              await sleep(RETRY_DELAYS[attempt]!);
+              continue;
+            }
+          }
+        }
+        console.log(`[AI] All retries exhausted for model: ${model}, trying next model`);
+      }
+      const message = lastError instanceof Error ? lastError.message : "AI extraction failed after all retries";
+      throw new Error(message);
+    },
+  };
+}
+
+export async function extractScheduleFromText(ocrText: string) {
   const configuredModel = process.env.OPENROUTER_MODEL;
   const models = configuredModel
-    ? [configuredModel, ...FALLBACK_MODELS.filter((m) => m !== configuredModel)]
-    : FALLBACK_MODELS;
+    ? [configuredModel, ...TEXT_MODELS.filter((m) => m !== configuredModel)]
+    : TEXT_MODELS;
 
-  console.log("[AI] API key present:", !!apiKey);
-  console.log("[AI] Model priority:", models.join(", "));
+  console.log("[AI] Text extraction — models:", models.join(", "));
+
+  return withRetry(
+    (model) => callOpenRouterText(model, ocrText).then(parseAiResponse),
+    models,
+  ).run();
+}
+
+export async function extractScheduleFromImage(imageUrl: string) {
+  const configuredModel = process.env.OPENROUTER_MODEL;
+  const models = configuredModel
+    ? [configuredModel, ...VISION_MODELS.filter((m) => m !== configuredModel)]
+    : VISION_MODELS;
+
+  console.log("[AI] Image extraction — models:", models.join(", "));
 
   const { base64, contentType } = await fetchImageAsBase64(imageUrl);
 
-  let lastError: unknown;
-
-  for (const model of models) {
-    for (let attempt = 0; attempt <= RETRY_DELAYS.length; attempt++) {
-      try {
-        console.log(`[AI] Attempt ${attempt + 1}/${RETRY_DELAYS.length + 1} with model: ${model}`);
-        const data = await callOpenRouter(model, base64, contentType);
-        return parseAiResponse(data);
-      } catch (err) {
-        lastError = err;
-
-        if (err && typeof err === "object" && "code" in err && (err as { code: unknown }).code === "RATE_LIMITED") {
-          const rateErr = err as unknown as { retryAfter: number; model: string };
-          console.log(`[AI] Rate limited on ${rateErr.model}, retrying in ${rateErr.retryAfter}s or switching model`);
-
-          if (attempt < RETRY_DELAYS.length) {
-            const delay = Math.min(Math.max(rateErr.retryAfter * 1000, RETRY_DELAYS[attempt]!), 5000);
-            console.log(`[AI] Waiting ${delay}ms before retry ${attempt + 2}...`);
-            await sleep(delay);
-            continue;
-          }
-
-          break;
-        }
-
-        if (attempt < RETRY_DELAYS.length) {
-          console.log(`[AI] Transient error, retrying in ${RETRY_DELAYS[attempt]}ms...`);
-          await sleep(RETRY_DELAYS[attempt]!);
-          continue;
-        }
-      }
-    }
-
-    console.log(`[AI] All retries exhausted for model: ${model}, trying next model`);
-  }
-
-  const message = lastError instanceof Error ? lastError.message : "AI extraction failed after all retries";
-  throw new Error(message);
+  return withRetry(
+    (model) => callOpenRouterVision(model, base64, contentType).then(parseAiResponse),
+    models,
+  ).run();
 }
