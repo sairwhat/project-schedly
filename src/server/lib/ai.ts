@@ -1,7 +1,6 @@
 const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
 
 const TEXT_MODELS = [
-  "openai/gpt-oss-20b:free",
   "google/gemma-4-26b-a4b-it:free",
   "google/gemma-4-31b-it:free",
   "nvidia/llama-nemotron-rerank-vl-1b-v2:free",

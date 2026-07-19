@@ -2,7 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { put } from "@vercel/blob";
 import { auth } from "@/server/lib/auth";
 import { db } from "@/server/db/client";
-import { extractScheduleFromImage, extractScheduleFromText } from "@/server/lib/ai";
+import { extractScheduleFromImage } from "@/server/lib/ai";
 import { extractionResultSchema } from "@/server/validators/ai.schema";
 import { detectImageMime, checkRateLimit, validateCsrf } from "@/server/lib/security";
 import { auditLog } from "@/server/lib/audit";
@@ -94,50 +94,26 @@ export async function POST(request: NextRequest) {
     let metadata = { totalClasses: 0, confidence: 0, notes: null as string | null };
 
     if (process.env.OPENROUTER_API_KEY) {
-      const ocrText = formData.get("ocrText") as string | null;
+      try {
+        const origin = new URL(request.url).origin;
+        const absoluteUrl = stored.url.startsWith("http")
+          ? stored.url
+          : `${origin}${stored.url}`;
+        const raw = await extractScheduleFromImage(absoluteUrl);
+        const parsed = extractionResultSchema.parse(raw);
 
-      if (ocrText && ocrText.length > 20) {
-        try {
-          const raw = await extractScheduleFromText(ocrText);
-          const parsed = extractionResultSchema.parse(raw);
+        const validClasses = parsed.classes.filter(
+          (c) => c.subject && c.days.length > 0 && c.startTime && c.endTime
+        );
 
-          const validClasses = parsed.classes.filter(
-            (c) => c.subject && c.days.length > 0 && c.startTime && c.endTime
-          );
-
-          classes = validClasses;
-          metadata = {
-            totalClasses: validClasses.length,
-            confidence: parsed.metadata.confidence,
-            notes: parsed.metadata.notes,
-          };
-        } catch (aiErr) {
-          console.error("[UPLOAD_API] Text AI extraction error:", aiErr);
-        }
-      }
-
-      if (classes.length === 0) {
-        try {
-          const origin = new URL(request.url).origin;
-          const absoluteUrl = stored.url.startsWith("http")
-            ? stored.url
-            : `${origin}${stored.url}`;
-          const raw = await extractScheduleFromImage(absoluteUrl);
-          const parsed = extractionResultSchema.parse(raw);
-
-          const validClasses = parsed.classes.filter(
-            (c) => c.subject && c.days.length > 0 && c.startTime && c.endTime
-          );
-
-          classes = validClasses;
-          metadata = {
-            totalClasses: validClasses.length,
-            confidence: parsed.metadata.confidence,
-            notes: parsed.metadata.notes,
-          };
-        } catch (visionErr) {
-          console.error("[UPLOAD_API] Vision AI fallback error:", visionErr);
-        }
+        classes = validClasses;
+        metadata = {
+          totalClasses: validClasses.length,
+          confidence: parsed.metadata.confidence,
+          notes: parsed.metadata.notes,
+        };
+      } catch (aiErr) {
+        console.error("[UPLOAD_API] AI extraction error:", aiErr);
       }
     } else {
       metadata.notes = "AI extraction not configured — add classes manually.";
