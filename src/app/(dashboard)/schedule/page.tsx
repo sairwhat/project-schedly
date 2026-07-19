@@ -64,6 +64,7 @@ export default function SchedulePage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [validationIssues, setValidationIssues] = useState<ValidationIssue[]>([]);
+  const [ocrError, setOcrError] = useState("");
   const {
     uploadFile, isUploading, progress, upload, isProcessing,
     extractedClasses, metadata,
@@ -121,8 +122,13 @@ export default function SchedulePage() {
 
   const handleUpload = async () => {
     if (!selectedFile) return;
+    setOcrError("");
     try {
       const ocrText = await runOcr(selectedFile);
+      if (!ocrText) {
+        setOcrError("OCR couldn't read any text. Try a clearer image.");
+        return;
+      }
       const data = await uploadFile(selectedFile, ocrText) as { classes?: unknown[] };
       if (data.classes && data.classes.length > 0) {
         const result = validateExtractedClasses(data.classes as Parameters<typeof validateExtractedClasses>[0]);
@@ -131,6 +137,7 @@ export default function SchedulePage() {
       }
     } catch (err) {
       console.error(err);
+      setOcrError("Something went wrong during text extraction.");
     }
   };
 
@@ -337,6 +344,11 @@ export default function SchedulePage() {
                     {upload?.error && (
                       <p className="flex items-center gap-1 text-sm text-red-500">
                         <AlertCircle className="h-4 w-4" /> {upload.error}
+                      </p>
+                    )}
+                    {ocrError && (
+                      <p className="flex items-center gap-1 text-sm text-red-500">
+                        <AlertCircle className="h-4 w-4" /> {ocrError}
                       </p>
                     )}
                   </div>
