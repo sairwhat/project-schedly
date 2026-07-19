@@ -5,11 +5,6 @@ import { Button } from "@/components/ui/button";
 import {
   Play,
   Pause,
-  SkipBack,
-  SkipForward,
-  Shuffle,
-  Repeat,
-  Repeat1,
   Upload,
   Search,
   Music,

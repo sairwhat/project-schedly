@@ -62,4 +62,6 @@ android/.idea/
 android/capacitor.settings.gradle
 android/capacitor.build.gradle
 android/app/capacitor.build.gradle
-www/
+
+# project specific
+CLAUDE.md

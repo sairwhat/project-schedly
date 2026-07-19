@@ -4,7 +4,6 @@ import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
-  Timer,
   Play,
   Pause,
   RotateCcw,
