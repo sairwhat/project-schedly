@@ -2,9 +2,7 @@ const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
 
 const FALLBACK_MODELS = [
   "google/gemma-4-26b-a4b-it:free",
-  "google/gemini-2.0-flash-001",
-  "openai/gpt-4o-mini",
-  "meta-llama/llama-3.3-70b-instruct",
+  "google/gemma-4-31b-it:free",
 ];
 
 const RETRY_DELAYS = [2000, 5000, 15000, 30000];
