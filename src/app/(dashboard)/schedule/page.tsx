@@ -280,9 +280,23 @@ export default function SchedulePage() {
                             style={{ width: `${progress}%` }}
                           />
                         </div>
-                        <p className="text-center text-sm font-medium text-foreground">
-                          {upload?.statusMessage || (isProcessing ? "Processing..." : `Uploading ${progress}%`)}
-                        </p>
+                        <div className="text-center">
+                          <p className="text-sm font-medium text-foreground">
+                            {isProcessing ? (
+                              <span className="inline-flex items-center gap-2">
+                                <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                                AI is reading your schedule
+                              </span>
+                            ) : `Uploading ${progress}%`}
+                          </p>
+                          {isProcessing && (
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              This may take a moment — AI processing time varies depending on server load.
+                              <br />
+                              Please hold on while we extract your classes.
+                            </p>
+                          )}
+                        </div>
                       </div>
                     ) : (
                       <div className="flex gap-3">

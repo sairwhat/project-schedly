@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback } from "react";
 
 export type ExtractedClass = {
   subject: string;
@@ -19,7 +19,6 @@ type UploadStatus = {
   progress: number;
   error?: string;
   fileUrl?: string;
-  statusMessage?: string;
 };
 
 export function useUpload() {
@@ -29,13 +28,11 @@ export function useUpload() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [extractedClasses, setExtractedClasses] = useState<ExtractedClass[]>([]);
   const [metadata, setMetadata] = useState<{ confidence: number; notes?: string | null } | null>(null);
-  const parsedRef = useRef(0);
 
   const uploadFile = (file: File): Promise<Record<string, unknown>> => {
     return new Promise((resolve, reject) => {
       const uploadId = crypto.randomUUID();
-      parsedRef.current = 0;
-      setUpload({ id: uploadId, status: "uploading", progress: 0, statusMessage: "Reading file..." });
+      setUpload({ id: uploadId, status: "uploading", progress: 0 });
       setIsUploading(true);
       setProgress(0);
       setIsProcessing(false);
@@ -48,88 +45,32 @@ export function useUpload() {
         if (e.lengthComputable) {
           const pct = Math.round((e.loaded / e.total) * 100);
           setProgress(pct);
-          setUpload((prev) => prev ? { ...prev, progress: pct, statusMessage: `Uploading ${pct}%` } : null);
-        }
-      });
-
-      xhr.addEventListener("readystatechange", () => {
-        if (xhr.readyState === 3 && xhr.status === 200) {
-          const newText = xhr.responseText.substring(parsedRef.current);
-          parsedRef.current = xhr.responseText.length;
-
-          const lines = newText.split("\n").filter((l: string) => l.trim());
-          for (const line of lines) {
-            try {
-              const msg = JSON.parse(line);
-              if (msg.type === "progress") {
-                setIsProcessing(true);
-                setProgress(msg.progress);
-                setUpload((prev) => prev ? {
-                  ...prev,
-                  status: "processing",
-                  progress: msg.progress,
-                  statusMessage: msg.message,
-                } : null);
-              }
-            } catch { /* partial line — wait for more data */ }
-          }
+          setUpload((prev) => prev ? { ...prev, progress: pct } : null);
         }
       });
 
       xhr.addEventListener("load", () => {
         setProgress(100);
-        setIsProcessing(false);
 
         if (xhr.status >= 200 && xhr.status < 300) {
           try {
-            const fullText = xhr.responseText;
-            const lines = fullText.split("\n").filter((l: string) => l.trim());
-            let result: Record<string, unknown> | null = null;
-
-            for (const line of lines) {
-              try {
-                const msg = JSON.parse(line);
-                if (msg.type === "progress") {
-                  setProgress(msg.progress);
-                  setUpload((prev) => prev ? { ...prev, progress: msg.progress, statusMessage: msg.message } : null);
-                } else if (msg.type === "result") {
-                  result = msg.data;
-                } else if (msg.type === "error") {
-                  throw new Error(msg.error);
-                }
-              } catch { /* skip malformed lines */ }
-            }
-
-            if (result) {
-              setExtractedClasses((result.classes || []) as ExtractedClass[]);
-              setMetadata((result.metadata || { confidence: 0 }) as { confidence: number; notes?: string | null });
-              setUpload((prev) => prev ? {
-                ...prev,
-                status: "completed",
-                progress: 100,
-                fileUrl: result!.fileUrl as string,
-                id: result!.uploadId as string,
-                statusMessage: "Complete!",
-              } : null);
-              resolve(result);
-            } else {
-              // Fallback: parse entire response as JSON
-              const data = JSON.parse(fullText);
-              if (data.error) throw new Error(data.error);
-              setExtractedClasses(data.classes || []);
-              setMetadata(data.metadata || { confidence: 0 });
-              setUpload((prev) => prev ? {
-                ...prev,
-                status: "completed",
-                progress: 100,
-                fileUrl: data.fileUrl,
-                id: data.uploadId,
-                statusMessage: "Complete!",
-              } : null);
-              resolve(data);
-            }
+            const data = JSON.parse(xhr.responseText);
+            setExtractedClasses(data.classes || []);
+            setMetadata(data.metadata || { confidence: 0 });
+            setUpload((prev) => prev ? {
+              ...prev,
+              status: "completed",
+              progress: 100,
+              fileUrl: data.fileUrl,
+              id: data.uploadId,
+            } : null);
+            setIsUploading(false);
+            setIsProcessing(false);
+            resolve(data);
           } catch {
             setUpload((prev) => prev ? { ...prev, status: "failed", error: "Invalid response" } : null);
+            setIsUploading(false);
+            setIsProcessing(false);
             reject(new Error("Invalid response"));
           }
         } else {
@@ -139,21 +80,30 @@ export function useUpload() {
           } catch (e) {
             const msg = e instanceof Error ? e.message : "Upload failed";
             setUpload((prev) => prev ? { ...prev, status: "failed", error: msg } : null);
+            setIsUploading(false);
+            setIsProcessing(false);
             reject(e);
           }
         }
       });
 
       xhr.addEventListener("error", () => {
+        setIsUploading(false);
         setIsProcessing(false);
         setUpload((prev) => prev ? { ...prev, status: "failed", error: "Network error" } : null);
         reject(new Error("Network error"));
       });
 
       xhr.addEventListener("abort", () => {
+        setIsUploading(false);
         setIsProcessing(false);
         setUpload((prev) => prev ? { ...prev, status: "failed", error: "Upload cancelled" } : null);
         reject(new Error("Upload cancelled"));
+      });
+
+      xhr.upload.addEventListener("load", () => {
+        setIsProcessing(true);
+        setUpload((prev) => prev ? { ...prev, status: "processing" } : null);
       });
 
       xhr.open("POST", "/api/upload");
