@@ -1,5 +1,14 @@
 const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
 
+const FALLBACK_MODELS = [
+  "google/gemma-4-26b-a4b-it:free",
+  "google/gemini-2.0-flash-001",
+  "openai/gpt-4o-mini",
+  "meta-llama/llama-3.3-70b-instruct",
+];
+
+const RETRY_DELAYS = [2000, 5000, 15000, 30000];
+
 const SCHEDULE_EXTRACTION_PROMPT = `You are a schedule extraction AI. Analyze the provided image of a class schedule and extract all classes into structured JSON.
 
 For each class, extract:
@@ -42,24 +51,29 @@ Rules:
 - Extract ALL visible classes, even if partially visible
 - Do not include any text before or after the JSON`;
 
-export async function extractScheduleFromImage(imageUrl: string) {
-  const apiKey = process.env.OPENROUTER_API_KEY;
-  const model = process.env.OPENROUTER_MODEL || "google/gemma-4-26b-a4b-it:free";
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
+async function fetchImageAsBase64(imageUrl: string) {
   console.log("[AI] Fetching image from:", imageUrl);
-  console.log("[AI] Model:", model);
-  console.log("[AI] API key present:", !!apiKey);
 
-  const imageResponse = await fetch(imageUrl);
-  if (!imageResponse.ok) {
-    throw new Error(`Failed to fetch image: ${imageResponse.status}`);
+  const response = await fetch(imageUrl);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch image: ${response.status}`);
   }
 
-  const contentType = imageResponse.headers.get("content-type") || "image/jpeg";
-  const arrayBuffer = await imageResponse.arrayBuffer();
+  const contentType = response.headers.get("content-type") || "image/jpeg";
+  const arrayBuffer = await response.arrayBuffer();
   const base64 = Buffer.from(arrayBuffer).toString("base64");
 
   console.log("[AI] Image fetched:", arrayBuffer.byteLength, "bytes,", contentType);
+
+  return { base64, contentType };
+}
+
+async function callOpenRouter(model: string, base64: string, contentType: string) {
+  const apiKey = process.env.OPENROUTER_API_KEY;
 
   const response = await fetch(OPENROUTER_API_URL, {
     method: "POST",
@@ -93,11 +107,33 @@ export async function extractScheduleFromImage(imageUrl: string) {
   const data = await response.json();
 
   if (!response.ok) {
-    console.error("[AI] API error:", response.status, JSON.stringify(data));
-    throw new Error(`AI API error: ${response.status} - ${data?.error?.message || "Unknown"}`);
+    const status = response.status;
+    const msg = data?.error?.message || "Unknown";
+    console.error(`[AI] API error: ${status} on ${model}:`, msg);
+
+    if (status === 429) {
+      const retryAfter = data?.error?.metadata?.retry_after_seconds_raw || 10;
+      throw { code: "RATE_LIMITED", model, retryAfter, message: msg };
+    }
+
+    throw new Error(`AI API error: ${status} - ${msg}`);
   }
 
-  const text = data.choices?.[0]?.message?.content;
+  return data;
+}
+
+interface OpenRouterChoice {
+  message: { content: string };
+}
+
+interface OpenRouterResponse {
+  choices?: OpenRouterChoice[];
+}
+
+function parseAiResponse(data: unknown) {
+  const obj = data as OpenRouterResponse;
+  const first = obj.choices?.[0];
+  const text = first?.message?.content;
   console.log("[AI] Response:", String(text).substring(0, 200));
 
   if (!text) {
@@ -111,4 +147,56 @@ export async function extractScheduleFromImage(imageUrl: string) {
   }
 
   return JSON.parse(jsonMatch[0]) as unknown;
+}
+
+export async function extractScheduleFromImage(imageUrl: string) {
+  const apiKey = process.env.OPENROUTER_API_KEY;
+  const configuredModel = process.env.OPENROUTER_MODEL;
+  const models = configuredModel
+    ? [configuredModel, ...FALLBACK_MODELS.filter((m) => m !== configuredModel)]
+    : FALLBACK_MODELS;
+
+  console.log("[AI] API key present:", !!apiKey);
+  console.log("[AI] Model priority:", models.join(", "));
+
+  const { base64, contentType } = await fetchImageAsBase64(imageUrl);
+
+  let lastError: unknown;
+
+  for (const model of models) {
+    for (let attempt = 0; attempt <= RETRY_DELAYS.length; attempt++) {
+      try {
+        console.log(`[AI] Attempt ${attempt + 1}/${RETRY_DELAYS.length + 1} with model: ${model}`);
+        const data = await callOpenRouter(model, base64, contentType);
+        return parseAiResponse(data);
+      } catch (err) {
+        lastError = err;
+
+        if (err && typeof err === "object" && "code" in err && (err as { code: unknown }).code === "RATE_LIMITED") {
+          const rateErr = err as unknown as { retryAfter: number; model: string };
+          console.log(`[AI] Rate limited on ${rateErr.model}, retrying in ${rateErr.retryAfter}s or switching model`);
+
+          if (attempt < RETRY_DELAYS.length) {
+            const delay = Math.max(rateErr.retryAfter * 1000, RETRY_DELAYS[attempt]!);
+            console.log(`[AI] Waiting ${delay}ms before retry ${attempt + 2}...`);
+            await sleep(delay);
+            continue;
+          }
+
+          break;
+        }
+
+        if (attempt < RETRY_DELAYS.length) {
+          console.log(`[AI] Transient error, retrying in ${RETRY_DELAYS[attempt]}ms...`);
+          await sleep(RETRY_DELAYS[attempt]!);
+          continue;
+        }
+      }
+    }
+
+    console.log(`[AI] All retries exhausted for model: ${model}, trying next model`);
+  }
+
+  const message = lastError instanceof Error ? lastError.message : "AI extraction failed after all retries";
+  throw new Error(message);
 }
