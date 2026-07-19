@@ -1,16 +1,52 @@
 "use client";
 
-import { Suspense, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState, useRef } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
 function PendingContent() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const email = searchParams.get("email") || "";
   const [resent, setResent] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [polling, setPolling] = useState(true);
+  const pollRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
+
+  useEffect(() => {
+    pollRef.current = setInterval(async () => {
+      try {
+        const res = await fetch("/api/auth/get-session");
+        const data = await res.json();
+        if (data?.user?.emailVerified) {
+          clearInterval(pollRef.current);
+          setPolling(false);
+          router.push("/schedule");
+        }
+      } catch {
+        // keep polling
+      }
+    }, 3000);
+
+    return () => {
+      clearInterval(pollRef.current);
+    };
+  }, [router]);
+
+  const checkNow = async () => {
+    setPolling(false);
+    try {
+      const res = await fetch("/api/auth/get-session");
+      const data = await res.json();
+      if (data?.user?.emailVerified) {
+        router.push("/schedule");
+        return;
+      }
+    } catch { /* not yet */ }
+    setPolling(true);
+  };
 
   async function resendEmail() {
     if (!email) return;
@@ -53,6 +89,18 @@ function PendingContent() {
           Click the link in the email to verify your account.
           The link expires in 24 hours.
         </p>
+        {polling && (
+          <p className="text-xs text-center text-muted-foreground animate-pulse">
+            Waiting for verification{/* no dots needed */}
+          </p>
+        )}
+        <Button
+          variant="outline"
+          className="w-full h-11 font-medium"
+          onClick={checkNow}
+        >
+          I&apos;ve verified — check now
+        </Button>
         {resent && (
           <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-center dark:border-green-800 dark:bg-green-950">
             <p className="text-sm font-medium text-green-700 dark:text-green-400">
