@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -23,18 +23,16 @@ type Note = {
 const STORAGE_KEY = "schedly-notes";
 
 export default function NotesPage() {
-  const [notes, setNotes] = useState<Note[] | null>(null);
+  const [notes, setNotes] = useState<Note[] | null>(() => {
+    try {
+      return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+    } catch {
+      return [];
+    }
+  });
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    try {
-      setNotes(JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]"));
-    } catch {
-      setNotes([]);
-    }
-  }, []);
 
   const persist = useCallback((next: Note[]) => {
     setNotes(next);

@@ -17,9 +17,7 @@ export async function proxy(request: NextRequest) {
   const sessionCookie = getSessionCookie(request);
 
   if (!sessionCookie && !isPublic) {
-    const loginUrl = new URL("/login", request.url);
-    loginUrl.searchParams.set("callback", pathname);
-    return NextResponse.redirect(loginUrl);
+    return NextResponse.redirect(new URL("/login", request.url));
   }
 
   if (sessionCookie && (pathname === "/" || pathname === "/login" || pathname === "/register")) {

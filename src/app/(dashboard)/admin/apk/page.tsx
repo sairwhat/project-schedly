@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, startTransition } from "react";
 import { useAuth } from "@/features/auth/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -56,7 +56,9 @@ export default function AdminApkPage() {
 
   useEffect(() => {
     if (!isAdmin) return;
-    pushLog("info", "Fetching current live version...");
+    startTransition(() => {
+      pushLog("info", "Fetching current live version...");
+    });
     fetch("/api/admin/apk")
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {

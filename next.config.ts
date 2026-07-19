@@ -14,12 +14,17 @@ const csp = [
   "font-src 'self'",
   `connect-src 'self' ${appUrl} https://*.vercel.app https://*.blob.vercel-storage.com https://blob.vercel-storage.com`,
   "frame-ancestors 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "frame-src 'none'",
+  "worker-src 'self'",
+  "manifest-src 'self'",
+  ...(isDev ? [] : ["report-uri /api/csp-report"]),
 ].join("; ");
 
 const securityHeaders = [
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "X-Frame-Options", value: "DENY" },
-  { key: "X-XSS-Protection", value: "1; mode=block" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   {
     key: "Permissions-Policy",
@@ -33,6 +38,14 @@ const securityHeaders = [
     key: "Content-Security-Policy",
     value: csp,
   },
+  {
+    key: "Cross-Origin-Opener-Policy",
+    value: "same-origin",
+  },
+  {
+    key: "Cross-Origin-Resource-Policy",
+    value: "same-origin",
+  },
 ];
 
 const nextConfig: NextConfig = {
@@ -40,6 +53,10 @@ const nextConfig: NextConfig = {
     {
       source: "/(.*)",
       headers: securityHeaders,
+    },
+    {
+      source: "/(dashboard)/:path*",
+      headers: [{ key: "X-Robots-Tag", value: "noindex" }],
     },
   ],
 };

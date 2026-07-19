@@ -24,21 +24,30 @@ export default function PomodoroPage() {
   const [phase, setPhase] = useState<"focus" | "break">("focus");
   const [secondsLeft, setSecondsLeft] = useState(DEFAULTS.focus * 60);
   const [running, setRunning] = useState(false);
+  const phaseRef = useRef(phase);
+  const focusRef = useRef(focusMin);
+  const breakRef = useRef(breakMin);
 
   useEffect(() => {
-    setSecondsLeft((phase === "focus" ? focusMin : breakMin) * 60);
+    phaseRef.current = phase;
+    focusRef.current = focusMin;
+    breakRef.current = breakMin;
+  });
+
+  useEffect(() => {
     if (!running) return;
     const id = setInterval(() => {
-      setSecondsLeft((s) => (s <= 1 ? 0 : s - 1));
+      setSecondsLeft((s) => {
+        if (s <= 1) {
+          const next = phaseRef.current === "focus" ? "break" : "focus";
+          setPhase(next);
+          return next === "focus" ? focusRef.current * 60 : breakRef.current * 60;
+        }
+        return s - 1;
+      });
     }, 1000);
     return () => clearInterval(id);
-  }, [running, phase, focusMin, breakMin]);
-
-  useEffect(() => {
-    if (secondsLeft === 0 && running) {
-      setPhase((p) => (p === "focus" ? "break" : "focus"));
-    }
-  }, [secondsLeft, running]);
+  }, [running]);
 
   const total = (phase === "focus" ? focusMin : breakMin) * 60;
   const progress = total > 0 ? (secondsLeft / total) * 100 : 0;

@@ -3,6 +3,7 @@
 import { auth } from "@/server/lib/auth";
 import { headers } from "next/headers";
 import { adminService } from "@/server/services/admin.service";
+import { auditLog } from "@/server/lib/audit";
 
 async function requireAdmin() {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -24,5 +25,7 @@ export async function getUsers() {
 
 export async function toggleAdminRole(userId: string) {
   const session = await requireAdmin();
-  return adminService.toggleAdmin(userId, session.user.id);
+  const result = await adminService.toggleAdmin(userId, session.user.id);
+  auditLog("user.admin_toggle", { targetUserId: userId, callerId: session.user.id });
+  return result;
 }

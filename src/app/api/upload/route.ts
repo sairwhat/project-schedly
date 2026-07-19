@@ -5,6 +5,7 @@ import { db } from "@/server/db/client";
 import { extractScheduleFromImage } from "@/server/lib/ai";
 import { extractionResultSchema } from "@/server/validators/ai.schema";
 import { detectImageMime, checkRateLimit, validateCsrf } from "@/server/lib/security";
+import { auditLog } from "@/server/lib/audit";
 import fs from "fs/promises";
 import path from "path";
 
@@ -86,6 +87,8 @@ export async function POST(request: NextRequest) {
         status: "processing",
       },
     });
+
+    auditLog("upload.create", { userId: session.user.id, uploadId: upload.id, fileName: file.name });
 
     let classes: ReturnType<typeof extractionResultSchema.parse>["classes"] = [];
     let metadata = { totalClasses: 0, confidence: 0, notes: null as string | null };

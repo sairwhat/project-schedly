@@ -81,7 +81,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true, versionInfo, url: blob.url });
   } catch (error) {
     console.error("[APK_UPLOAD_API] Error:", error);
-    const msg = error instanceof Error ? error.message : "Upload failed";
-    return NextResponse.json({ error: msg }, { status: 500 });
+    return NextResponse.json({ error: "Upload failed" }, { status: 500 });
   }
 }

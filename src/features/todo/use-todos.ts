@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useCallback } from "react";
 
 export type TodoItem = {
   id: string;
@@ -15,15 +15,13 @@ export type TodoItem = {
 const STORAGE_KEY = "schedly-todos";
 
 export function useTodos() {
-  const [todos, setTodos] = useState<TodoItem[]>([]);
-
-  useEffect(() => {
+  const [todos, setTodos] = useState<TodoItem[]>(() => {
     try {
-      setTodos(JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]"));
+      return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
     } catch {
-      setTodos([]);
+      return [];
     }
-  }, []);
+  });
 
   const addTodo = useCallback(
     (text: string, priority: TodoItem["priority"], dueDate?: string) => {

@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect, useCallback, useMemo } from "react";
+import { createContext, useContext, useState, useCallback, useMemo } from "react";
 import { THEME_PRESETS, DEFAULT_THEME_ID, type ThemePreset } from "./presets";
 
 type ThemeContextValue = {
@@ -28,11 +28,7 @@ function presetToVars(preset: ThemePreset): React.CSSProperties {
 }
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [activeId, setActiveId] = useState<string>(DEFAULT_THEME_ID);
-
-  useEffect(() => {
-    setActiveId(getStoredId());
-  }, []);
+  const [activeId, setActiveId] = useState<string>(() => getStoredId());
 
   const setTheme = useCallback((id: string) => {
     const preset = THEME_PRESETS.find((p) => p.id === id);

@@ -3,6 +3,7 @@ import { z } from "zod";
 import { auth } from "@/server/lib/auth";
 import { db } from "@/server/db/client";
 import { checkRateLimit, validateCsrf } from "@/server/lib/security";
+import { auditLog } from "@/server/lib/audit";
 
 const feedbackSchema = z.object({
   type: z.enum(["bug", "feedback", "question"]).default("feedback"),
@@ -54,6 +55,8 @@ export async function POST(request: NextRequest) {
         page: page ?? null,
       },
     });
+
+    auditLog("feedback.submit", { userId: session.user.id, feedbackId: feedback.id, type });
 
     return NextResponse.json({ success: true, id: feedback.id }, { status: 201 });
   } catch (err) {

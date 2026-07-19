@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, startTransition } from "react";
 import { Capacitor } from "@capacitor/core";
 import { InAppUpdate } from "@/lib/capacitor-plugins/in-app-update";
 import type { UpdateInfo } from "@/lib/capacitor-plugins/in-app-update";
@@ -40,7 +40,9 @@ export function useUpdateChecker() {
   const dismiss = useCallback(() => setUpdateInfo(null), []);
 
   useEffect(() => {
-    check();
+    startTransition(() => {
+      check();
+    });
   }, [check]);
 
   return { updateInfo, checking, downloading, downloadAndInstall, dismiss };

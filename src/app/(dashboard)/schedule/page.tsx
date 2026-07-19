@@ -51,7 +51,10 @@ export default function SchedulePage() {
   const u = user as UserWithExtras | null;
 
   const [phase, setPhase] = useState<Phase>("list");
-  const [greeting, setGreeting] = useState("Good day");
+  const [greeting] = useState(() => {
+    const h = new Date().getHours();
+    return h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening";
+  });
   const [schedules, setSchedules] = useState<ScheduleData[]>([]);
   const [loadingSchedules, setLoadingSchedules] = useState(true);
   const [selectedSchedule, setSelectedSchedule] = useState<ScheduleData | null>(null);
@@ -64,11 +67,6 @@ export default function SchedulePage() {
     extractedClasses, metadata,
     updateExtractedClass, removeExtractedClass, addExtractedClass, resetUpload,
   } = useUpload();
-
-  useEffect(() => {
-    const h = new Date().getHours();
-    setGreeting(h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening");
-  }, []);
 
   useEffect(() => {
     if (!authLoading) {

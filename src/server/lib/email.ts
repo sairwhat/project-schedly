@@ -9,7 +9,7 @@ interface SendEmailOptions {
 export async function sendEmail({ to, subject, html }: SendEmailOptions) {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) {
-    console.warn("[Email] RESEND_API_KEY not set — skipping email to", to);
+    console.warn("[Email] RESEND_API_KEY not set — skipping email");
     return;
   }
 

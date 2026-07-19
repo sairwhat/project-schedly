@@ -11,7 +11,11 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Blob not configured" }, { status: 503 });
   }
 
-  const version = request.nextUrl.searchParams.get("v") || "";
+  const version = (request.nextUrl.searchParams.get("v") || "").replace(/^v/i, "").trim();
+
+  if (!/^\d+(\.\d+)*$/.test(version)) {
+    return NextResponse.json({ error: "Invalid version" }, { status: 400 });
+  }
 
   try {
     const apkPath = `releases/Schedly-${version.replace(/^v/i, "").trim()}-release.apk`;

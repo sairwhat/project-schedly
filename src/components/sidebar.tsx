@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { navGroups, type NavItem } from "@/config/navigation";
@@ -177,14 +177,12 @@ export function Sidebar({ onClose }: { onClose?: () => void }) {
     .join("")
     .toUpperCase() || firstName.charAt(0).toUpperCase();
   const avatarUrl = u?.image || u?.avatarUrl || null;
-  const [hello, setHello] = useState("Good day");
+  const [hello] = useState(() => {
+    const h = new Date().getHours();
+    return greeting(h);
+  });
   const pathname = usePathname();
   const isAdminPage = pathname.startsWith("/admin");
-
-  useEffect(() => {
-    const h = new Date().getHours();
-    setHello(h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening");
-  }, []);
 
   return (
     <aside className="flex h-full w-full flex-col rounded-3xl bg-sidebar/95 shadow-[0_8px_40px_rgba(0,0,0,0.12)]">

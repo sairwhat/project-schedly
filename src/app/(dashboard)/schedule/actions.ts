@@ -3,9 +3,8 @@
 import { auth } from "@/server/lib/auth";
 import { headers } from "next/headers";
 import { scheduleService } from "@/server/services/schedule.service";
-import { classService } from "@/server/services/class.service";
 import { saveScheduleSchema } from "@/server/validators/ai.schema";
-import { userRepository } from "@/server/repositories/user.repository";
+import { auditLog } from "@/server/lib/audit";
 
 export type SaveScheduleResult =
   | { success: true; scheduleId: string }
@@ -28,6 +27,7 @@ export async function saveSchedule(data: unknown): Promise<SaveScheduleResult> {
 
   try {
     const schedule = await scheduleService.create(session.user.id, parsed.data);
+    auditLog("schedule.create", { userId: session.user.id, scheduleId: schedule.id, title: parsed.data.title });
     return { success: true, scheduleId: schedule.id };
   } catch (err) {
     console.error("[SAVE_SCHEDULE]", err);
@@ -42,6 +42,7 @@ export async function deleteSchedule(scheduleId: string): Promise<{ success: boo
   try {
     const result = await scheduleService.delete(scheduleId, session.user.id);
     if (!result) return { success: false, error: "Schedule not found" };
+    auditLog("schedule.delete", { userId: session.user.id, scheduleId });
     return { success: true };
   } catch (err) {
     console.error("[DELETE_SCHEDULE]", err);

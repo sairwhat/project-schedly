@@ -1,28 +1,17 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Menu } from "lucide-react";
 import { Sidebar } from "@/components/sidebar";
 import { ThemeProvider, useThemeConfig } from "@/features/theme";
 
 function DashboardShell({ children }: { children: React.ReactNode }) {
   const { themeVars } = useThemeConfig();
-  const [open, setOpen] = useState(true);
-  const [showButton, setShowButton] = useState(false);
-
-  useEffect(() => {
-    const mq = window.matchMedia("(min-width: 768px)");
-    setOpen(mq.matches);
-  }, []);
-
-  useEffect(() => {
-    if (open) {
-      setShowButton(false);
-      return;
-    }
-    const t = setTimeout(() => setShowButton(true), 320);
-    return () => clearTimeout(t);
-  }, [open]);
+  const [open, setOpen] = useState(() => {
+    if (typeof window === "undefined") return true;
+    return window.matchMedia("(min-width: 768px)").matches;
+  });
+  const showButton = !open;
 
   const sidebarWrap = [
     "fixed right-0 top-0 bottom-0 z-40 w-[304px] p-3 transition-transform duration-300 ease-out will-change-transform",
