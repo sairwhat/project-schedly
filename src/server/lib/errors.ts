@@ -1,71 +1,50 @@
-import type { AppError } from "@/types";
+export type AppErrorCode =
+  | "UNAUTHORIZED"
+  | "FORBIDDEN"
+  | "NOT_FOUND"
+  | "VALIDATION_ERROR"
+  | "CONFLICT"
+  | "RATE_LIMITED"
+  | "AI_PROCESSING_FAILED"
+  | "UPLOAD_FAILED"
+  | "INTERNAL_ERROR";
 
-export type { AppError, Result } from "@/types";
-
-export class NotFoundError extends Error {
-  readonly code = "NOT_FOUND";
-  constructor(resource: string) {
-    super(`${resource} not found`);
-  }
+export interface AppError {
+  code: AppErrorCode;
+  message: string;
+  details?: Record<string, string[]>;
 }
 
-export class UnauthorizedError extends Error {
-  readonly code = "UNAUTHORIZED";
-  constructor(message = "Not authenticated") {
-    super(message);
-  }
+export type Result<T> = { success: true; data: T } | { success: false; error: AppError };
+
+export function ok<T>(data: T): Result<T> {
+  return { success: true, data };
 }
 
-export class ForbiddenError extends Error {
-  readonly code = "FORBIDDEN";
-  constructor(message = "Insufficient permissions") {
-    super(message);
-  }
+export function fail(code: AppErrorCode, message: string, details?: Record<string, string[]>): Result<never> {
+  return { success: false, error: { code, message, details } };
 }
 
-export class ValidationError extends Error {
-  readonly code = "VALIDATION_ERROR";
-  readonly details: Record<string, string[]>;
-  constructor(details: Record<string, string[]>) {
-    super("Validation failed");
-    this.details = details;
-  }
+export function unauthorized(message = "Unauthorized"): Result<never> {
+  return fail("UNAUTHORIZED", message);
 }
 
-export class ConflictError extends Error {
-  readonly code = "CONFLICT";
-  constructor(message: string) {
-    super(message);
-  }
+export function forbidden(message = "Forbidden"): Result<never> {
+  return fail("FORBIDDEN", message);
 }
 
-export class RateLimitError extends Error {
-  readonly code = "RATE_LIMITED";
-  readonly retryAfter: number;
-  constructor(retryAfter: number) {
-    super("Rate limited");
-    this.retryAfter = retryAfter;
-  }
+export function notFound(message = "Resource not found"): Result<never> {
+  return fail("NOT_FOUND", message);
 }
 
-export class AIProcessingError extends Error {
-  readonly code = "AI_PROCESSING_FAILED";
-  constructor(message: string) {
-    super(message);
-  }
+export function validationError(details: Record<string, string[]>, message = "Validation failed"): Result<never> {
+  return fail("VALIDATION_ERROR", message, details);
 }
 
-export function toAppError(error: unknown): AppError {
-  if (error && typeof error === "object" && "code" in error) {
-    const e = error as AppError;
-    return {
-      code: e.code,
-      message: e.message,
-      details: "details" in e ? (e.details as Record<string, string[]>) : undefined,
-    };
-  }
-  return {
-    code: "INTERNAL_ERROR",
-    message: error instanceof Error ? error.message : "An unexpected error occurred",
-  };
+export function conflict(message = "Resource already exists"): Result<never> {
+  return fail("CONFLICT", message);
+}
+
+export function internalError(message = "Internal server error"): Result<never> {
+  return fail("INTERNAL_ERROR", message);
 }
