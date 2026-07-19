@@ -4,6 +4,8 @@ export interface NavItem {
   icon: string;
   badge?: number;
   adminOnly?: boolean;
+  /** Shown in the bottom navigation (primary destinations) */
+  primary?: boolean;
 }
 
 export interface NavGroup {
@@ -11,36 +13,30 @@ export interface NavGroup {
   items: NavItem[];
 }
 
+/**
+ * Sidebar (Navigation Drawer) groups — secondary tools, utilities,
+ * personalization, and account management. Primary destinations
+ * (Dashboard, Schedule, To-Do, Reminders, Pomodoro) live in the
+ * Bottom Navigation and are excluded from the drawer.
+ */
 export const navGroups: NavGroup[] = [
   {
-    title: "Main",
+    title: "Tools",
     items: [
-      { label: "Dashboard", href: "/dashboard", icon: "layout-dashboard" },
-      { label: "Schedule", href: "/schedule", icon: "calendar" },
-
-    ],
-  },
-  {
-    title: "Productivity",
-    items: [
-      { label: "To-Do List", href: "/todo", icon: "check-square" },
-      { label: "Reminders", href: "/reminders", icon: "bell-ring" },
-      { label: "Pomodoro Timer", href: "/pomodoro", icon: "timer" },
       { label: "Notes", href: "/notes", icon: "sticky-note" },
-    ],
-  },
-  {
-    title: "Academics",
-    items: [
       { label: "GPA Calculator", href: "/gpa", icon: "graduation-cap" },
-    ],
-  },
-  {
-    title: "More",
-    items: [
       { label: "Music", href: "/music", icon: "music" },
     ],
   },
 ];
 
-export const mainNav: NavItem[] = navGroups.flatMap((g) => g.items);
+/** Primary destinations — shown in the Bottom Navigation only. */
+export const primaryNav: NavItem[] = [
+  { label: "Dashboard", href: "/dashboard", icon: "layout-dashboard", primary: true },
+  { label: "Schedule", href: "/schedule", icon: "calendar", primary: true },
+  { label: "To-Do", href: "/todo", icon: "check-square", primary: true },
+  { label: "Reminders", href: "/reminders", icon: "bell-ring", primary: true },
+  { label: "Pomodoro", href: "/pomodoro", icon: "timer", primary: true },
+];
+
+export const mainNav: NavItem[] = [...primaryNav, ...navGroups.flatMap((g) => g.items)];

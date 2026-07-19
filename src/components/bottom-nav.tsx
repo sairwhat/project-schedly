@@ -3,16 +3,13 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { mainNav } from "@/config/navigation";
+import { primaryNav } from "@/config/navigation";
 import {
   LayoutDashboard,
   Calendar,
   CheckSquare,
   BellRing,
   Timer,
-  GraduationCap,
-  StickyNote,
-  Music,
 } from "lucide-react";
 
 const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -21,23 +18,11 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   "check-square": CheckSquare,
   "bell-ring": BellRing,
   timer: Timer,
-  "sticky-note": StickyNote,
-  "graduation-cap": GraduationCap,
-  music: Music,
 };
-
-// MD3 bottom nav shows up to 5 primary destinations. Keep the most-used ones.
-const PRIMARY_HREFS = [
-  "/dashboard",
-  "/schedule",
-  "/todo",
-  "/reminders",
-  "/pomodoro",
-];
 
 export function BottomNav() {
   const pathname = usePathname();
-  const items = mainNav.filter((i) => PRIMARY_HREFS.includes(i.href));
+  const items = primaryNav;
 
   return (
     <nav
