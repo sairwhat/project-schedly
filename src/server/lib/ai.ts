@@ -5,7 +5,7 @@ const FALLBACK_MODELS = [
   "google/gemma-4-31b-it:free",
 ];
 
-const RETRY_DELAYS = [2000, 5000, 15000, 30000];
+const RETRY_DELAYS = [1000, 3000];
 
 const SCHEDULE_EXTRACTION_PROMPT = `You are a schedule extraction AI. Analyze the provided image of a class schedule and extract all classes into structured JSON.
 
@@ -175,7 +175,7 @@ export async function extractScheduleFromImage(imageUrl: string) {
           console.log(`[AI] Rate limited on ${rateErr.model}, retrying in ${rateErr.retryAfter}s or switching model`);
 
           if (attempt < RETRY_DELAYS.length) {
-            const delay = Math.max(rateErr.retryAfter * 1000, RETRY_DELAYS[attempt]!);
+            const delay = Math.min(Math.max(rateErr.retryAfter * 1000, RETRY_DELAYS[attempt]!), 5000);
             console.log(`[AI] Waiting ${delay}ms before retry ${attempt + 2}...`);
             await sleep(delay);
             continue;
