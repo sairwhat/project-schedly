@@ -3,6 +3,7 @@
 import { put } from "@vercel/blob";
 import { auth } from "@/server/lib/auth";
 import { headers } from "next/headers";
+import { detectImageMime } from "@/server/lib/security";
 
 export async function uploadAvatar(formData: FormData): Promise<{ url: string } | { error: string }> {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -19,14 +20,16 @@ export async function uploadAvatar(formData: FormData): Promise<{ url: string } 
     return { error: "File must be under 4MB" };
   }
 
-  if (!file.type.startsWith("image/")) {
-    return { error: "File must be an image" };
+  const buffer = new Uint8Array(await file.arrayBuffer());
+  const detectedMime = detectImageMime(buffer);
+  if (!detectedMime) {
+    return { error: "File must be an image (JPEG, PNG, GIF, WebP, or BMP)" };
   }
 
   const ext = file.name.split(".").pop() || "jpg";
   const filename = `avatars/${session.user.id}-${Date.now()}.${ext}`;
 
-  const blob = await put(filename, file, {
+  const blob = await put(filename, new Blob([Buffer.from(buffer)], { type: detectedMime }), {
     access: "public",
     addRandomSuffix: false,
     token: process.env.BLOB_READ_WRITE_TOKEN,

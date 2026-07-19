@@ -56,3 +56,10 @@ export function checkRateLimit(
     remaining: Math.max(0, maxRequests - valid.length),
   };
 }
+
+const CSRF_HEADER = "x-csrf-protection";
+const CSRF_VALUE = "1";
+
+export function validateCsrf(request: Request): boolean {
+  return request.headers.get(CSRF_HEADER) === CSRF_VALUE;
+}

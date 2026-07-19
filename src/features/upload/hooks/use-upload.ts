@@ -95,6 +95,7 @@ export function useUpload() {
       });
 
       xhr.open("POST", "/api/upload");
+      xhr.setRequestHeader("x-csrf-protection", "1");
 
       const formData = new FormData();
       formData.append("file", file);

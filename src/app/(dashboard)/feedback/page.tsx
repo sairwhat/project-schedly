@@ -44,7 +44,7 @@ export default function FeedbackPage() {
     try {
       const res = await fetch("/api/feedback", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "x-csrf-protection": "1" },
         body: JSON.stringify({
           type,
           subject: subject.trim() || undefined,

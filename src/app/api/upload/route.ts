@@ -4,7 +4,7 @@ import { auth } from "@/server/lib/auth";
 import { db } from "@/server/db/client";
 import { extractScheduleFromImage } from "@/server/lib/ai";
 import { extractionResultSchema } from "@/server/validators/ai.schema";
-import { detectImageMime, checkRateLimit } from "@/server/lib/security";
+import { detectImageMime, checkRateLimit, validateCsrf } from "@/server/lib/security";
 import fs from "fs/promises";
 import path from "path";
 
@@ -41,6 +41,10 @@ export async function POST(request: NextRequest) {
   const rateCheck = checkRateLimit(`upload:${session.user.id}`, 10, 60_000);
   if (!rateCheck.allowed) {
     return NextResponse.json({ error: "Too many uploads. Try again later." }, { status: 429 });
+  }
+
+  if (!validateCsrf(request)) {
+    return NextResponse.json({ error: "Invalid request" }, { status: 403 });
   }
 
   try {
