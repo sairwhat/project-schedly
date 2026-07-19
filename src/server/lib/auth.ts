@@ -126,10 +126,10 @@ export const auth = betterAuth({
   advanced: {
     cookies: {
       sessionToken: {
-        name: "schedly-session",
+        name: process.env.NODE_ENV === "production" ? "__Host-schedly-session" : "schedly-session",
         attributes: {
           httpOnly: true,
-          secure: process.env.NODE_ENV === "production",
+          secure: true,
           sameSite: "lax",
           path: "/",
         },

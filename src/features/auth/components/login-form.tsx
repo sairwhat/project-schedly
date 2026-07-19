@@ -8,6 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { loginSchema, type LoginInput } from "@/lib/validations";
+import { TurnstileWidget } from "@/components/turnstile";
+import { verifyCaptcha } from "@/app/actions";
 import Link from "next/link";
 
 export function LoginForm() {
@@ -15,6 +17,7 @@ export function LoginForm() {
   const [errors, setErrors] = useState<Partial<Record<keyof LoginInput, string>>>({});
   const [serverError, setServerError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState("");
   const { signIn } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -42,6 +45,14 @@ export function LoginForm() {
     }
 
     setLoading(true);
+
+    const captchaResult = await verifyCaptcha(turnstileToken);
+    if (!captchaResult.success) {
+      setServerError("Bot verification failed. Please try again.");
+      setLoading(false);
+      return;
+    }
+
     const signInResult = await signIn(result.data);
 
     if (signInResult.error) {
@@ -113,6 +124,9 @@ export function LoginForm() {
               <p className="text-sm text-destructive">{serverError}</p>
             </div>
           )}
+          <div className="flex justify-center">
+            <TurnstileWidget onToken={setTurnstileToken} />
+          </div>
           <Button type="submit" className="w-full h-11 font-medium" disabled={loading}>
             {loading ? (
               <span className="flex items-center gap-2">
