@@ -221,10 +221,9 @@ body {
   }
 }
 
-/* ===== Bottom navigation (MD3) — mobile only ===== */
+/* ===== Bottom navigation (MD3) — floating rounded pill, mobile only ===== */
 .bottom-nav {
-  padding-bottom: calc(0.5rem + var(--sab));
-  padding-left: max(0.5rem, var(--sal));
-  padding-right: max(0.5rem, var(--sar));
+  padding-left: max(0.25rem, var(--sal));
+  padding-right: max(0.25rem, var(--sar));
 }
 
