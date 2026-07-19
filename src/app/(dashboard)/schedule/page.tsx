@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/features/auth/hooks/use-auth";
 import { useUpload } from "@/features/upload";
+import { useOcr } from "@/features/upload/hooks/use-ocr";
 import { ScheduleReview } from "@/features/upload";
 import { SchedulePreview } from "@/features/schedule/components/schedule-preview";
 import { getUserSchedules, getSchedule, deleteSchedule } from "./actions";
@@ -68,6 +69,7 @@ export default function SchedulePage() {
     extractedClasses, metadata,
     updateExtractedClass, removeExtractedClass, addExtractedClass, resetUpload,
   } = useUpload();
+  const { runOcr, isOcrRunning, ocrProgress } = useOcr();
 
   useEffect(() => {
     if (!authLoading) {
@@ -120,7 +122,8 @@ export default function SchedulePage() {
   const handleUpload = async () => {
     if (!selectedFile) return;
     try {
-      const data = await uploadFile(selectedFile) as { classes?: unknown[] };
+      const ocrText = await runOcr(selectedFile);
+      const data = await uploadFile(selectedFile, ocrText) as { classes?: unknown[] };
       if (data.classes && data.classes.length > 0) {
         const result = validateExtractedClasses(data.classes as Parameters<typeof validateExtractedClasses>[0]);
         setValidationIssues(result.issues);
@@ -271,31 +274,56 @@ export default function SchedulePage() {
                       <p className="text-xs text-muted-foreground">{(selectedFile.size / 1024 / 1024).toFixed(2)} MB &middot; {selectedFile.type}</p>
                     </div>
 
-                    {isUploading ? (
+                    {isUploading || isOcrRunning ? (
                       <div className="space-y-3">
-                        <div className="relative h-2 w-full overflow-hidden rounded-full bg-primary/10">
-                          <div
-                            className="absolute inset-y-0 left-0 rounded-full bg-primary transition-all duration-300 ease-out"
-                            style={{ width: `${progress}%` }}
-                          />
-                        </div>
-                        <div className="text-center">
-                          <p className="text-sm font-medium text-foreground">
-                            {isProcessing ? (
-                              <span className="inline-flex items-center gap-2">
-                                <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-                                AI is reading your schedule
-                              </span>
-                            ) : `Uploading ${progress}%`}
-                          </p>
-                          {isProcessing && (
-                            <p className="mt-1 text-xs text-muted-foreground">
-                              This may take a moment — AI processing time varies depending on server load.
-                              <br />
-                              Please hold on while we extract your classes.
-                            </p>
-                          )}
-                        </div>
+                        {isOcrRunning && (
+                          <>
+                            <div className="relative h-2 w-full overflow-hidden rounded-full bg-primary/10">
+                              <div
+                                className="absolute inset-y-0 left-0 rounded-full bg-primary transition-all duration-300 ease-out"
+                                style={{ width: `${ocrProgress}%` }}
+                              />
+                            </div>
+                            <div className="text-center">
+                              <p className="text-sm font-medium text-foreground">
+                                <span className="inline-flex items-center gap-2">
+                                  <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                                  Extracting text from image...
+                                </span>
+                              </p>
+                              <p className="mt-1 text-xs text-muted-foreground">
+                                This runs entirely in your browser.
+                              </p>
+                            </div>
+                          </>
+                        )}
+                        {isUploading && (
+                          <>
+                            <div className="relative h-2 w-full overflow-hidden rounded-full bg-primary/10">
+                              <div
+                                className="absolute inset-y-0 left-0 rounded-full bg-primary transition-all duration-300 ease-out"
+                                style={{ width: `${progress}%` }}
+                              />
+                            </div>
+                            <div className="text-center">
+                              <p className="text-sm font-medium text-foreground">
+                                {isProcessing ? (
+                                  <span className="inline-flex items-center gap-2">
+                                    <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                                    AI is reading your schedule
+                                  </span>
+                                ) : `Uploading ${progress}%`}
+                              </p>
+                              {isProcessing && (
+                                <p className="mt-1 text-xs text-muted-foreground">
+                                  This may take a moment — AI processing time varies depending on server load.
+                                  <br />
+                                  Please hold on while we extract your classes.
+                                </p>
+                              )}
+                            </div>
+                          </>
+                        )}
                       </div>
                     ) : (
                       <div className="flex gap-3">

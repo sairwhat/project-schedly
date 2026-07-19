@@ -3,7 +3,6 @@ import { put } from "@vercel/blob";
 import { auth } from "@/server/lib/auth";
 import { db } from "@/server/db/client";
 import { extractScheduleFromImage, extractScheduleFromText } from "@/server/lib/ai";
-import { ocrImage } from "@/server/lib/ocr";
 import { extractionResultSchema } from "@/server/validators/ai.schema";
 import { detectImageMime, checkRateLimit, validateCsrf } from "@/server/lib/security";
 import { auditLog } from "@/server/lib/audit";
@@ -95,11 +94,10 @@ export async function POST(request: NextRequest) {
     let metadata = { totalClasses: 0, confidence: 0, notes: null as string | null };
 
     if (process.env.OPENROUTER_API_KEY) {
-      try {
-        const ocrText = await ocrImage(Buffer.from(buffer));
-        console.log("[UPLOAD_API] OCR text:", ocrText.substring(0, 200));
+      const ocrText = formData.get("ocrText") as string | null;
 
-        if (ocrText.length > 20) {
+      if (ocrText && ocrText.length > 20) {
+        try {
           const raw = await extractScheduleFromText(ocrText);
           const parsed = extractionResultSchema.parse(raw);
 
@@ -113,12 +111,12 @@ export async function POST(request: NextRequest) {
             confidence: parsed.metadata.confidence,
             notes: parsed.metadata.notes,
           };
-        } else {
-          metadata.notes = "OCR returned insufficient text — try a clearer image.";
+        } catch (aiErr) {
+          console.error("[UPLOAD_API] Text AI extraction error:", aiErr);
         }
-      } catch (ocrAiErr) {
-        console.error("[UPLOAD_API] OCR+AI extraction error, falling back to vision AI:", ocrAiErr);
+      }
 
+      if (classes.length === 0) {
         try {
           const origin = new URL(request.url).origin;
           const absoluteUrl = stored.url.startsWith("http")
@@ -138,7 +136,7 @@ export async function POST(request: NextRequest) {
             notes: parsed.metadata.notes,
           };
         } catch (visionErr) {
-          console.error("[UPLOAD_API] Vision AI fallback also failed:", visionErr);
+          console.error("[UPLOAD_API] Vision AI fallback error:", visionErr);
         }
       }
     } else {

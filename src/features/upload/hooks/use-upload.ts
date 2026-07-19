@@ -30,7 +30,7 @@ export function useUpload() {
   const [extractedClasses, setExtractedClasses] = useState<ExtractedClass[]>([]);
   const [metadata, setMetadata] = useState<{ confidence: number; notes?: string | null } | null>(null);
 
-  const uploadFile = (file: File): Promise<Record<string, unknown>> => {
+  const uploadFile = (file: File, ocrText?: string): Promise<Record<string, unknown>> => {
     const uploadId = crypto.randomUUID();
     setUpload({ id: uploadId, status: "uploading", progress: 0 });
     setIsUploading(true);
@@ -112,6 +112,7 @@ export function useUpload() {
 
       const formData = new FormData();
       formData.append("file", file);
+      if (ocrText) formData.append("ocrText", ocrText);
 
       xhr.send(formData);
     });
