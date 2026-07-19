@@ -6,6 +6,7 @@ import { useUpload } from "@/features/upload";
 import { ScheduleReview } from "@/features/upload";
 import { SchedulePreview } from "@/features/schedule/components/schedule-preview";
 import { getUserSchedules, getSchedule, deleteSchedule } from "./actions";
+import { retry } from "@/lib/retry";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -70,7 +71,7 @@ export default function SchedulePage() {
 
   useEffect(() => {
     if (!authLoading) {
-      getUserSchedules().then((data) => {
+      retry(() => getUserSchedules(), { delayMs: 2000 }).then((data) => {
         setSchedules(data as ScheduleData[]);
         setLoadingSchedules(false);
       });

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { retry } from "@/lib/retry";
 
 export type ExtractedClass = {
   subject: string;
@@ -30,15 +31,15 @@ export function useUpload() {
   const [metadata, setMetadata] = useState<{ confidence: number; notes?: string | null } | null>(null);
 
   const uploadFile = (file: File): Promise<Record<string, unknown>> => {
-    return new Promise((resolve, reject) => {
-      const uploadId = crypto.randomUUID();
-      setUpload({ id: uploadId, status: "uploading", progress: 0 });
-      setIsUploading(true);
-      setProgress(0);
-      setIsProcessing(false);
-      setExtractedClasses([]);
-      setMetadata(null);
+    const uploadId = crypto.randomUUID();
+    setUpload({ id: uploadId, status: "uploading", progress: 0 });
+    setIsUploading(true);
+    setProgress(0);
+    setIsProcessing(false);
+    setExtractedClasses([]);
+    setMetadata(null);
 
+    const doUpload = () => new Promise<Record<string, unknown>>((resolve, reject) => {
       const xhr = new XMLHttpRequest();
 
       xhr.upload.addEventListener("progress", (e) => {
@@ -114,6 +115,8 @@ export function useUpload() {
 
       xhr.send(formData);
     });
+
+    return retry(doUpload, { maxRetries: 1, delayMs: 2000 });
   };
 
   const resetUpload = () => {

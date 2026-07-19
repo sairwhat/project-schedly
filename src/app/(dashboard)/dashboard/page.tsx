@@ -5,6 +5,7 @@ import { Capacitor, registerPlugin } from "@capacitor/core";
 import html2canvas from "html2canvas-pro";
 import { useAuth } from "@/features/auth/hooks/use-auth";
 import { getUserSchedules } from "@/app/(dashboard)/schedule/actions";
+import { retry } from "@/lib/retry";
 import { SchedulePreview } from "@/features/schedule/components/schedule-preview";
 import { useTodos, isToday } from "@/features/todo/use-todos";
 import { Button } from "@/components/ui/button";
@@ -114,7 +115,7 @@ export default function DashboardPage() {
   const firstName = (user as { firstName?: string } | null)?.firstName || "User";
 
   useEffect(() => {
-    getUserSchedules()
+    retry(() => getUserSchedules(), { delayMs: 2000 })
       .then((data) => setSchedules(data as ScheduleData[]))
       .catch(() => setSchedules([]));
   }, []);

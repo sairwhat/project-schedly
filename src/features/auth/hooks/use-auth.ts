@@ -3,6 +3,7 @@
 import { useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
+import { retry } from "@/lib/retry";
 
 export function useAuth() {
   const { data: session, isPending, refetch } = authClient.useSession();
@@ -18,11 +19,11 @@ export function useAuth() {
       birthdate: string;
       sex: string;
     }) => {
-      const result = await authClient.signUp.email({
+      const result = await retry(() => authClient.signUp.email({
         ...data,
         name: `${data.firstName} ${data.lastName}`,
         callbackURL: "/verify-email/success",
-      } as Parameters<typeof authClient.signUp.email>[0]);
+      } as Parameters<typeof authClient.signUp.email>[0]));
       return result;
     },
     []
@@ -30,11 +31,11 @@ export function useAuth() {
 
   const signIn = useCallback(
     async (data: { email: string; password: string }) => {
-      const result = await authClient.signIn.email({
+      const result = await retry(() => authClient.signIn.email({
         email: data.email,
         password: data.password,
         callbackURL: "/schedule",
-      });
+      }));
       return result;
     },
     []
