@@ -102,10 +102,11 @@ export function RegisterForm() {
 
   const passwordStrength = form.password
     ? [
-        form.password.length >= 8,
+        form.password.length >= 10,
         /[A-Z]/.test(form.password),
         /[a-z]/.test(form.password),
         /\d/.test(form.password),
+        /[!@#$%^&*()_\-+=<>?/{}~|]/.test(form.password),
       ].filter(Boolean).length
     : 0;
 
@@ -250,7 +251,7 @@ export function RegisterForm() {
                   <Input
                     id="password"
                     type="password"
-                    placeholder="Min 8 chars, upper, lower, number"
+                    placeholder="Min 10 chars, upper, lower, number, special"
                     value={form.password}
                     onChange={(e) => update("password", e.target.value)}
                     aria-invalid={!!errors.password}
@@ -259,7 +260,7 @@ export function RegisterForm() {
                   />
                   {form.password && (
                     <div className="flex gap-1.5 pt-1">
-                      {Array.from({ length: 4 }).map((_, i) => (
+                      {Array.from({ length: 5 }).map((_, i) => (
                         <div
                           key={i}
                           className={`h-1 flex-1 rounded-full transition-colors ${

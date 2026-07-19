@@ -56,10 +56,10 @@ const step3Schema = z
     password: z
       .string()
       .min(1, "Password is required")
-      .min(8, "Password must be at least 8 characters")
+      .min(10, "Password must be at least 10 characters")
       .regex(
-        /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/,
-        "Password must contain at least one uppercase letter, one lowercase letter, and one number"
+        /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_\-+=<>?/{}~|])/,
+        "Password must contain uppercase, lowercase, number, and special character"
       ),
     confirmPassword: z.string().min(1, "Please confirm your password"),
   })

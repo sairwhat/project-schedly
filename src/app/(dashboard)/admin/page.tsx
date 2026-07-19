@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { getAdminStats, getUsers, toggleAdminRole } from "./actions";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Card,
@@ -33,6 +34,9 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [visibleCount, setVisibleCount] = useState(5);
+  const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [confirmError, setConfirmError] = useState("");
 
   useEffect(() => {
     async function load() {
@@ -49,11 +53,19 @@ export default function AdminPage() {
   }, []);
 
   async function handleToggle(userId: string) {
-    setTogglingId(userId);
+    setConfirmId(userId);
+    setConfirmPassword("");
+    setConfirmError("");
+  }
+
+  async function confirmToggle() {
+    if (!confirmId) return;
+    setTogglingId(confirmId);
+    setConfirmId(null);
     try {
-      const updated = await toggleAdminRole(userId);
+      const updated = await toggleAdminRole(confirmId, confirmPassword);
       setUsers((prev) =>
-        prev.map((u) => (u.id === userId ? { ...u, isAdmin: updated.isAdmin } : u))
+        prev.map((u) => (u.id === confirmId ? { ...u, isAdmin: updated.isAdmin } : u))
       );
     } catch (err) {
       alert(err instanceof Error ? err.message : "Failed to update role");
@@ -219,6 +231,37 @@ export default function AdminPage() {
           )}
         </CardContent>
       </Card>
+
+      {confirmId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="w-full max-w-sm rounded-2xl bg-card p-6 shadow-xl">
+            <h3 className="text-lg font-semibold text-foreground">Confirm your password</h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Re-enter your password to authorize this admin action.
+            </p>
+            <Input
+              type="password"
+              autoFocus
+              placeholder="Your password"
+              value={confirmPassword}
+              onChange={(e) => { setConfirmPassword(e.target.value); setConfirmError(""); }}
+              onKeyDown={(e) => e.key === "Enter" && confirmToggle()}
+              className="mt-4 h-11"
+            />
+            {confirmError && (
+              <p className="mt-2 text-xs text-destructive">{confirmError}</p>
+            )}
+            <div className="mt-4 flex gap-3">
+              <Button variant="outline" className="flex-1 h-11" onClick={() => setConfirmId(null)}>
+                Cancel
+              </Button>
+              <Button className="flex-1 h-11" onClick={confirmToggle} disabled={!confirmPassword}>
+                Confirm
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
