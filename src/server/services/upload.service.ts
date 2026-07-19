@@ -1,6 +1,5 @@
 import { uploadRepository } from "@/server/repositories/upload.repository";
-import { extractScheduleFromImage } from "@/server/lib/ai";
-import { extractionResultSchema } from "@/server/validators/ai.schema";
+import { aiService } from "@/server/services/ai.service";
 
 export const uploadService = {
   async getByUser(userId: string) {
@@ -24,21 +23,15 @@ export const uploadService = {
   async processWithAi(uploadId: string, imageUrl: string) {
     try {
       await uploadRepository.updateStatus(uploadId, "processing");
-      const raw = await extractScheduleFromImage(imageUrl);
-      const parsed = extractionResultSchema.safeParse(raw);
+      const result = await aiService.processImage(imageUrl);
 
-      if (!parsed.success) {
-        await uploadRepository.updateStatus(uploadId, "failed", "AI returned invalid data");
-        return { success: false as const, error: "AI returned invalid data" };
+      if (!result.success) {
+        await uploadRepository.updateStatus(uploadId, "failed", result.error.message);
+        return { success: false as const, error: result.error.message };
       }
 
-      if (parsed.data.metadata.error) {
-        await uploadRepository.updateStatus(uploadId, "failed", parsed.data.metadata.error);
-        return { success: false as const, error: parsed.data.metadata.error };
-      }
-
-      await uploadRepository.updateAiResult(uploadId, parsed.data, "completed");
-      return { success: true as const, data: parsed.data };
+      await uploadRepository.updateAiResult(uploadId, JSON.parse(JSON.stringify(result.data)), "completed");
+      return { success: true as const, data: result.data };
     } catch (err) {
       const message = err instanceof Error ? err.message : "AI processing failed";
       await uploadRepository.updateStatus(uploadId, "failed", message);
