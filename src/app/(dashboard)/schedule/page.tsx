@@ -274,18 +274,14 @@ export default function SchedulePage() {
 
                     {isUploading ? (
                       <div className="space-y-3">
-                        {/* Progress bar */}
                         <div className="relative h-2 w-full overflow-hidden rounded-full bg-primary/10">
                           <div
-                            className={`absolute inset-y-0 left-0 rounded-full bg-primary transition-all duration-300 ease-out ${
-                              isProcessing ? "animate-pulse" : ""
-                            }`}
-                            style={{ width: isProcessing ? "100%" : `${progress}%` }}
+                            className="absolute inset-y-0 left-0 rounded-full bg-primary transition-all duration-300 ease-out"
+                            style={{ width: `${progress}%` }}
                           />
                         </div>
-                        {/* Status text */}
                         <p className="text-center text-sm font-medium text-foreground">
-                          {isProcessing ? "AI is analyzing your schedule..." : `Uploading ${progress}%`}
+                          {upload?.statusMessage || (isProcessing ? "Processing..." : `Uploading ${progress}%`)}
                         </p>
                       </div>
                     ) : (

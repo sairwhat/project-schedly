@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 
 export type ExtractedClass = {
   subject: string;
@@ -19,6 +19,7 @@ type UploadStatus = {
   progress: number;
   error?: string;
   fileUrl?: string;
+  statusMessage?: string;
 };
 
 export function useUpload() {
@@ -28,11 +29,13 @@ export function useUpload() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [extractedClasses, setExtractedClasses] = useState<ExtractedClass[]>([]);
   const [metadata, setMetadata] = useState<{ confidence: number; notes?: string | null } | null>(null);
+  const parsedRef = useRef(0);
 
   const uploadFile = (file: File): Promise<Record<string, unknown>> => {
     return new Promise((resolve, reject) => {
       const uploadId = crypto.randomUUID();
-      setUpload({ id: uploadId, status: "uploading", progress: 0 });
+      parsedRef.current = 0;
+      setUpload({ id: uploadId, status: "uploading", progress: 0, statusMessage: "Reading file..." });
       setIsUploading(true);
       setProgress(0);
       setIsProcessing(false);
@@ -45,7 +48,31 @@ export function useUpload() {
         if (e.lengthComputable) {
           const pct = Math.round((e.loaded / e.total) * 100);
           setProgress(pct);
-          setUpload((prev) => prev ? { ...prev, progress: pct } : null);
+          setUpload((prev) => prev ? { ...prev, progress: pct, statusMessage: `Uploading ${pct}%` } : null);
+        }
+      });
+
+      xhr.addEventListener("readystatechange", () => {
+        if (xhr.readyState === 3 && xhr.status === 200) {
+          const newText = xhr.responseText.substring(parsedRef.current);
+          parsedRef.current = xhr.responseText.length;
+
+          const lines = newText.split("\n").filter((l: string) => l.trim());
+          for (const line of lines) {
+            try {
+              const msg = JSON.parse(line);
+              if (msg.type === "progress") {
+                setIsProcessing(true);
+                setProgress(msg.progress);
+                setUpload((prev) => prev ? {
+                  ...prev,
+                  status: "processing",
+                  progress: msg.progress,
+                  statusMessage: msg.message,
+                } : null);
+              }
+            } catch { /* partial line — wait for more data */ }
+          }
         }
       });
 
@@ -55,17 +82,52 @@ export function useUpload() {
 
         if (xhr.status >= 200 && xhr.status < 300) {
           try {
-            const data = JSON.parse(xhr.responseText);
-            setExtractedClasses(data.classes || []);
-            setMetadata(data.metadata || { confidence: 0 });
-            setUpload((prev) => prev ? {
-              ...prev,
-              status: "completed",
-              progress: 100,
-              fileUrl: data.fileUrl,
-              id: data.uploadId,
-            } : null);
-            resolve(data);
+            const fullText = xhr.responseText;
+            const lines = fullText.split("\n").filter((l: string) => l.trim());
+            let result: Record<string, unknown> | null = null;
+
+            for (const line of lines) {
+              try {
+                const msg = JSON.parse(line);
+                if (msg.type === "progress") {
+                  setProgress(msg.progress);
+                  setUpload((prev) => prev ? { ...prev, progress: msg.progress, statusMessage: msg.message } : null);
+                } else if (msg.type === "result") {
+                  result = msg.data;
+                } else if (msg.type === "error") {
+                  throw new Error(msg.error);
+                }
+              } catch { /* skip malformed lines */ }
+            }
+
+            if (result) {
+              setExtractedClasses((result.classes || []) as ExtractedClass[]);
+              setMetadata((result.metadata || { confidence: 0 }) as { confidence: number; notes?: string | null });
+              setUpload((prev) => prev ? {
+                ...prev,
+                status: "completed",
+                progress: 100,
+                fileUrl: result!.fileUrl as string,
+                id: result!.uploadId as string,
+                statusMessage: "Complete!",
+              } : null);
+              resolve(result);
+            } else {
+              // Fallback: parse entire response as JSON
+              const data = JSON.parse(fullText);
+              if (data.error) throw new Error(data.error);
+              setExtractedClasses(data.classes || []);
+              setMetadata(data.metadata || { confidence: 0 });
+              setUpload((prev) => prev ? {
+                ...prev,
+                status: "completed",
+                progress: 100,
+                fileUrl: data.fileUrl,
+                id: data.uploadId,
+                statusMessage: "Complete!",
+              } : null);
+              resolve(data);
+            }
           } catch {
             setUpload((prev) => prev ? { ...prev, status: "failed", error: "Invalid response" } : null);
             reject(new Error("Invalid response"));
@@ -101,18 +163,6 @@ export function useUpload() {
       formData.append("file", file);
 
       xhr.send(formData);
-
-      // After a short delay (file is small, upload is fast), switch to processing
-      // The upload progress will naturally reach ~100% before server responds
-      setTimeout(() => {
-        setUpload((prev) => {
-          if (prev && prev.status === "uploading" && prev.progress >= 90) {
-            setIsProcessing(true);
-            return { ...prev, status: "processing" };
-          }
-          return prev;
-        });
-      }, 800);
     });
   };
 
