@@ -1,5 +1,6 @@
 import { getSessionCookie } from "better-auth/cookies";
 import { type NextRequest, NextResponse } from "next/server";
+import { checkRateLimit } from "@/server/lib/security";
 
 const publicRoutes = ["/login", "/register", "/"];
 const publicApiRoutes = ["/api/auth", "/api/version", "/api/admin/apk", "/api/admin/apk-download"];
@@ -7,6 +8,18 @@ const verificationRoutes = ["/verify-email"];
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  const method = request.method;
+  if (["POST", "PUT", "DELETE", "PATCH"].includes(method)) {
+    const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+    const rateCheck = checkRateLimit(`global:${ip}:${method}`, 30, 10_000);
+    if (!rateCheck.allowed) {
+      return new NextResponse(
+        JSON.stringify({ error: "Too many requests. Try again later." }),
+        { status: 429, headers: { "Content-Type": "application/json" } }
+      );
+    }
+  }
 
   const isPublicApi = publicApiRoutes.some((route) => pathname.startsWith(route));
   if (isPublicApi) return NextResponse.next();

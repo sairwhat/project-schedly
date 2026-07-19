@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/features/auth/hooks/use-auth";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,9 @@ import {
   registerStep3Schema,
   type RegisterInput,
 } from "@/lib/validations";
+import { TurnstileWidget } from "@/components/turnstile";
+import { verifyCaptcha } from "@/app/actions";
+import { isPasswordBreached } from "@/lib/hibp";
 import Link from "next/link";
 
 const TOTAL_STEPS = 3;
@@ -33,6 +36,9 @@ export function RegisterForm() {
   const [errors, setErrors] = useState<Partial<Record<keyof RegisterInput, string>>>({});
   const [serverError, setServerError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState("");
+  const [breachedCount, setBreachedCount] = useState(0);
+  const [checkingBreach, setCheckingBreach] = useState(false);
   const { signUp } = useAuth();
   const router = useRouter();
 
@@ -44,6 +50,7 @@ export function RegisterForm() {
     setForm((prev) => ({ ...prev, [field]: processed }));
     if (errors[field]) setErrors((prev) => ({ ...prev, [field]: undefined }));
     if (serverError) setServerError("");
+    if (field === "password") setBreachedCount(0);
   }
 
   function validateStep(s: number): boolean {
@@ -89,6 +96,23 @@ export function RegisterForm() {
     if (!validateStep(3)) return;
 
     setLoading(true);
+
+    setCheckingBreach(true);
+    const breachCount = await isPasswordBreached(form.password);
+    setCheckingBreach(false);
+    if (breachCount > 0) {
+      setBreachedCount(breachCount);
+      setLoading(false);
+      return;
+    }
+
+    const captchaResult = await verifyCaptcha(turnstileToken);
+    if (!captchaResult.success) {
+      setServerError("Bot verification failed. Please try again.");
+      setLoading(false);
+      return;
+    }
+
     const signUpResult = await signUp(form);
 
     if (signUpResult.error) {
@@ -173,8 +197,11 @@ export function RegisterForm() {
                       className="h-11"
                     />
                     {errors.lastName && <p className="text-xs text-destructive">{errors.lastName}</p>}
-                  </div>
                 </div>
+                <div className="flex justify-center pt-2">
+                  <TurnstileWidget onToken={setTurnstileToken} />
+                </div>
+              </div>
                 <div className="space-y-2">
                   <Label htmlFor="username" className="text-sm font-medium">Username</Label>
                   <Input
@@ -294,6 +321,18 @@ export function RegisterForm() {
                     <p className="text-xs text-destructive">{errors.confirmPassword}</p>
                   )}
                 </div>
+                {checkingBreach && (
+                  <p className="text-xs text-muted-foreground">Checking password against known breaches...</p>
+                )}
+                {breachedCount > 0 && (
+                  <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/10 p-3">
+                    <p className="text-xs text-yellow-700">
+                      This password has appeared in {breachedCount.toLocaleString()} known data breaches. 
+                      Using a compromised password significantly increases the risk of account takeover. 
+                      Please choose a different password.
+                    </p>
+                  </div>
+                )}
               </div>
             )}
           </div>
