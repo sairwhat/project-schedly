@@ -2,13 +2,14 @@
 
 import { useState } from "react";
 import type { ExtractedClass } from "@/features/upload/hooks/use-upload";
+import type { ValidationIssue } from "@/server/services/validation.service";
 import { saveSchedule, type SaveScheduleResult } from "@/app/(dashboard)/schedule/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, Plus, Trash2, Save, AlertCircle, ChevronDown, ChevronUp } from "lucide-react";
+import { Loader2, Plus, Trash2, Save, AlertCircle, ChevronDown, ChevronUp, AlertTriangle, XCircle } from "lucide-react";
 
 const DAYS = ["monday","tuesday","wednesday","thursday","friday","saturday","sunday"] as const;
 const DAY_LABELS: Record<string, string> = {
@@ -21,6 +22,7 @@ type Props = {
   uploadId?: string;
   fileUrl?: string;
   confidence?: number;
+  validationIssues?: ValidationIssue[];
   onUpdate: (index: number, updated: ExtractedClass) => void;
   onRemove: (index: number) => void;
   onAdd: () => void;
@@ -29,7 +31,7 @@ type Props = {
 };
 
 export function ScheduleReview({
-  classes, uploadId, confidence, onUpdate, onRemove, onAdd, onSaved, onCancel,
+  classes, uploadId, confidence, validationIssues = [], onUpdate, onRemove, onAdd, onSaved, onCancel,
 }: Props) {
   const [title, setTitle] = useState("");
   const [semester, setSemester] = useState("");
@@ -89,6 +91,28 @@ export function ScheduleReview({
         }`}>
           <span className="font-medium">AI Confidence: {Math.round(confidence * 100)}%</span>
           <span className="opacity-70">— Review and correct as needed</span>
+        </div>
+      )}
+
+      {validationIssues.length > 0 && (
+        <div className="space-y-2 rounded-lg border border-yellow-200 bg-yellow-50 px-3 py-2 dark:border-yellow-800 dark:bg-yellow-950">
+          <div className="flex items-center gap-2 text-sm font-medium text-yellow-800 dark:text-yellow-200">
+            <AlertTriangle className="h-4 w-4" />
+            Validation {validationIssues.filter((i) => i.severity === "error").length > 0 ? "Issues" : "Warnings"}
+            <span className="text-xs font-normal opacity-70">({validationIssues.length})</span>
+          </div>
+          <ul className="space-y-1">
+            {validationIssues.map((issue, idx) => (
+              <li key={idx} className="flex items-start gap-2 text-xs text-yellow-700 dark:text-yellow-300">
+                {issue.severity === "error" ? (
+                  <XCircle className="mt-0.5 h-3 w-3 shrink-0 text-red-500" />
+                ) : (
+                  <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
+                )}
+                <span>{issue.message}</span>
+              </li>
+            ))}
+          </ul>
         </div>
       )}
 

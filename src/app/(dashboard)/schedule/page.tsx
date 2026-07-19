@@ -14,6 +14,7 @@ import {
   Camera, Image, AlertCircle, CheckCircle, ArrowLeft,
   Plus, Calendar, ChevronRight, Trash2,
 } from "lucide-react";
+import { validateExtractedClasses, type ValidationIssue } from "@/server/services/validation.service";
 
 type ClassData = {
   id: string;
@@ -57,6 +58,7 @@ export default function SchedulePage() {
 
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [validationIssues, setValidationIssues] = useState<ValidationIssue[]>([]);
   const {
     uploadFile, isUploading, progress, upload, isProcessing,
     extractedClasses, metadata,
@@ -121,6 +123,8 @@ export default function SchedulePage() {
     try {
       const data = await uploadFile(selectedFile) as { classes?: unknown[] };
       if (data.classes && data.classes.length > 0) {
+        const result = validateExtractedClasses(data.classes as Parameters<typeof validateExtractedClasses>[0]);
+        setValidationIssues(result.issues);
         setPhase("review");
       }
     } catch (err) {
@@ -130,18 +134,21 @@ export default function SchedulePage() {
 
   const handleSaved = async (_scheduleId: string) => {
     setPhase("saved");
+    setValidationIssues([]);
     const data = await getUserSchedules();
     setSchedules(data as ScheduleData[]);
   };
 
   const handleBackToList = () => {
     removeFile();
+    setValidationIssues([]);
     setSelectedSchedule(null);
     setPhase("list");
   };
 
   const handleBackToSelect = () => {
     removeFile();
+    setValidationIssues([]);
     setPhase("upload-select");
   };
 
@@ -199,6 +206,7 @@ export default function SchedulePage() {
                 uploadId={upload?.id}
                 fileUrl={upload?.fileUrl}
                 confidence={metadata?.confidence}
+                validationIssues={validationIssues}
                 onUpdate={updateExtractedClass}
                 onRemove={removeExtractedClass}
                 onAdd={addExtractedClass}
