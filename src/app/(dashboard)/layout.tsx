@@ -38,7 +38,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         <button
           type="button"
           onClick={() => window.location.reload()}
-          className="fixed left-4 top-10 z-50 flex h-11 w-11 items-center justify-center rounded-xl bg-card/90 shadow-[0_8px_40px_rgba(0,0,0,0.1)] md:hidden"
+          className="fixed left-4 top-12 z-50 flex h-11 w-11 items-center justify-center rounded-xl bg-card/90 shadow-[0_8px_40px_rgba(0,0,0,0.1)] md:hidden"
           aria-label="Refresh page"
         >
           <img src="/images/logo.jpg" alt="Schedly" className="h-9 w-9 rounded-xl object-cover" />
@@ -49,7 +49,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
       {showButton && (
         <button
           onClick={() => setOpen(true)}
-          className="fixed right-4 top-10 z-50 flex h-11 w-11 items-center justify-center rounded-xl bg-sidebar/90 text-sidebar-foreground shadow-[0_8px_40px_rgba(0,0,0,0.12)] transition-colors hover:bg-sidebar md:flex"
+          className="fixed right-4 top-12 z-50 flex h-11 w-11 items-center justify-center rounded-xl bg-sidebar/90 text-sidebar-foreground shadow-[0_8px_40px_rgba(0,0,0,0.12)] transition-colors hover:bg-sidebar md:flex"
           aria-label="Show sidebar"
         >
           <Menu className="h-5 w-5" />
