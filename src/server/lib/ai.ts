@@ -3,6 +3,9 @@ const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
 const FALLBACK_MODELS = [
   "google/gemma-4-26b-a4b-it:free",
   "google/gemma-4-31b-it:free",
+  "nvidia/llama-nemotron-rerank-vl-1b-v2:free",
+  "nvidia/nemotron-3.5-content-safety:free",
+  "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
 ];
 
 const RETRY_DELAYS = [1000, 3000];
