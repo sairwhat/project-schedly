@@ -106,9 +106,9 @@ export function SchedulePreview({ classes, filename = "schedule.png", scale, cap
         <span className="ml-2 truncate text-xs font-mono text-muted-foreground">{filename}</span>
       </div>
 
-      <div className="-mx-1 overflow-x-auto pb-1 no-scrollbar">
+      <div className="overflow-hidden">
         <div
-          className={isCapture ? "grid min-w-[760px] gap-3" : "grid min-w-[520px] gap-1.5 sm:min-w-0 sm:gap-1"}
+          className={isCapture ? "grid min-w-[760px] gap-3" : "grid gap-1"}
           style={{ gridTemplateColumns: `repeat(${activeDays.length}, minmax(0, 1fr))` }}
         >
           {activeDays.map((day) => (
@@ -117,7 +117,7 @@ export function SchedulePreview({ classes, filename = "schedule.png", scale, cap
               className={
                 isCapture
                   ? "rounded-lg bg-primary/10 p-4 text-center text-2xl font-semibold text-primary"
-                  : "rounded-md bg-primary/10 p-2 text-center text-xs font-semibold text-primary sm:p-1.5"
+                  : "rounded-md bg-primary/10 p-1.5 text-center text-[11px] font-semibold text-primary sm:p-1.5 sm:text-xs"
               }
             >
               {DAY_LABELS[day]}
@@ -128,21 +128,21 @@ export function SchedulePreview({ classes, filename = "schedule.png", scale, cap
             activeDays.map((day) => {
               const items = classesAt(day, slot);
               return (
-                <div key={`${slot}-${day}`} className={isCapture ? "min-h-[120px]" : "min-h-[44px] sm:min-h-[46px]"}>
+                <div key={`${slot}-${day}`} className={isCapture ? "min-h-[120px]" : "min-h-[44px]"}>
                   {items.length === 0 ? (
-                    <div className={isCapture ? "flex h-full min-h-[120px] items-center justify-center rounded-lg bg-muted/30" : "flex h-full min-h-[44px] items-center justify-center rounded-md bg-muted/30 sm:min-h-[46px]"} />
+                    <div className={isCapture ? "flex h-full min-h-[120px] items-center justify-center rounded-lg bg-muted/30" : "flex h-full min-h-[44px] items-center justify-center rounded-md bg-muted/30"} />
                   ) : (
-                    <div className={isCapture ? "flex flex-col gap-3" : "flex flex-col gap-1.5"}>
+                    <div className={isCapture ? "flex flex-col gap-3" : "flex flex-col gap-1"}>
                       {items.map((c) => (
                         <div
                           key={c.id}
-                          className={isCapture ? "rounded-lg p-4 text-center" : "rounded-md p-2 text-center sm:p-1.5"}
+                          className={isCapture ? "rounded-lg p-4 text-center" : "rounded-md p-1 text-center"}
                           style={{ backgroundColor: c.color + "1f", color: c.color }}
                         >
-                          <div className={isCapture ? "text-2xl font-semibold leading-tight break-words" : "text-xs font-semibold leading-tight break-words sm:text-[10px]"}>
+                          <div className={isCapture ? "text-2xl font-semibold leading-tight break-words" : "text-[10px] font-semibold leading-tight break-words sm:text-[10px]"}>
                             {c.code || c.subject}
                           </div>
-                          <div className={isCapture ? "text-lg opacity-80 leading-tight" : "mt-0.5 text-[10px] opacity-80 leading-tight sm:text-[9px]"}>
+                          <div className={isCapture ? "text-lg opacity-80 leading-tight" : "mt-0.5 text-[9px] opacity-80 leading-tight"}>
                             {minutesTo12h(timeToMinutes(c.startTime))}–
                             {minutesTo12h(timeToMinutes(c.endTime))}
                           </div>
