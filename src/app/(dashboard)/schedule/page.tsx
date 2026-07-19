@@ -321,16 +321,15 @@ export default function SchedulePage() {
           {phase === "view" && selectedSchedule && (
             <div className="space-y-4">
               <div className="flex items-center justify-between gap-3">
-                <Button variant="ghost" size="sm" onClick={handleBackToList}>
+                <Button variant="ghost" className="h-10 px-3" onClick={handleBackToList}>
                   <ArrowLeft className="mr-1 h-4 w-4" /> Back
                 </Button>
                 <Button
                   variant="ghost"
-                  size="sm"
-                  className="h-7 text-destructive hover:text-destructive"
+                  className="h-10 px-3 text-destructive hover:text-destructive"
                   onClick={() => handleDeleteSchedule(selectedSchedule.id)}
                 >
-                  <Trash2 className="mr-1 h-3 w-3" /> Delete
+                  <Trash2 className="mr-1 h-4 w-4" /> Delete
                 </Button>
               </div>
               <SchedulePreview
@@ -345,7 +344,11 @@ export default function SchedulePage() {
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-semibold">Your Schedules</h2>
-                <Button size="sm" onClick={() => setPhase("upload-select")}>
+                <Button
+                  size="sm"
+                  className="hidden h-9 px-3 sm:inline-flex"
+                  onClick={() => setPhase("upload-select")}
+                >
                   <Plus className="mr-1 h-4 w-4" /> New Schedule
                 </Button>
               </div>
@@ -385,11 +388,12 @@ export default function SchedulePage() {
                   </Button>
                 </div>
               ) : (
-                <div className="grid gap-3 sm:grid-cols-2">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   {schedules.map((schedule) => (
                     <Card
                       key={schedule.id}
-                      className="cursor-pointer transition-colors hover:border-primary/50"
+                      size="sm"
+                      className="active:scale-touch cursor-pointer transition-colors hover:border-primary/50"
                       onClick={() => handleViewSchedule(schedule.id)}
                     >
                       <CardHeader className="pb-2">
@@ -421,10 +425,10 @@ export default function SchedulePage() {
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="h-7 text-destructive hover:text-destructive"
+                            className="h-9 text-destructive hover:text-destructive"
                             onClick={(e) => { e.stopPropagation(); handleDeleteSchedule(schedule.id); }}
                           >
-                            <Trash2 className="h-3 w-3" />
+                            <Trash2 className="h-4 w-4" />
                           </Button>
                         </div>
                       </CardContent>
@@ -433,6 +437,19 @@ export default function SchedulePage() {
                 </div>
               )}
             </div>
+          )}
+
+          {/* Mobile FAB for New Schedule (list phase only) */}
+          {phase === "list" && (
+            <button
+              type="button"
+              onClick={() => setPhase("upload-select")}
+              className="fixed bottom-20 right-4 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-[0_8px_30px_rgba(0,0,0,0.25)] transition-transform active:scale-95 sm:hidden md:bottom-6"
+              aria-label="New schedule"
+              style={{ marginBottom: "var(--sab)" }}
+            >
+              <Plus className="h-6 w-6" />
+            </button>
           )}
         </div>
       </main>

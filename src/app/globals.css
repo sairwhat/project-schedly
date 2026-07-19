@@ -149,3 +149,82 @@ body {
   50% { transform: scaleY(1); }
 }
 
+/* ===== Material Design 3 mobile adaptations ===== */
+/* Larger, touch-friendly base interaction targets on small screens */
+@layer base {
+  /* Respect device safe areas (notch, rounded corners, gesture bars) */
+  :root {
+    --sat: env(safe-area-inset-top, 0px);
+    --sar: env(safe-area-inset-right, 0px);
+    --sab: env(safe-area-inset-bottom, 0px);
+    --sal: env(safe-area-inset-left, 0px);
+  }
+
+  html {
+    -webkit-tap-highlight-color: transparent;
+    text-size-adjust: 100%;
+  }
+
+  /* Inputs/selects easier to tap on touch */
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+
+  @media (max-width: 767px) {
+    /* Prevent accidental zoom on focus */
+    body {
+      overscroll-behavior-y: none;
+    }
+  }
+}
+
+/* Thin, themed scrollbars to feel native */
+@layer utilities {
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in oklch, var(--foreground) 18%, transparent) transparent;
+  }
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: color-mix(in oklch, var(--foreground) 18%, transparent);
+    border-radius: 999px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  /* Hide scrollbar but keep scroll (horizontal carousels) */
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Press feedback for cards / touch surfaces */
+  .active\:scale-touch:active {
+    transform: scale(0.98);
+  }
+
+  /* Safe-area aware bottom offset for floating action buttons / bottom bars */
+  .pb-safe {
+    padding-bottom: calc(0.75rem + var(--sab));
+  }
+  .mb-safe {
+    margin-bottom: calc(0.25rem + var(--sab));
+  }
+}
+
+/* ===== Bottom navigation (MD3) — mobile only ===== */
+.bottom-nav {
+  padding-bottom: calc(0.5rem + var(--sab));
+  padding-left: max(0.5rem, var(--sal));
+  padding-right: max(0.5rem, var(--sar));
+}
+

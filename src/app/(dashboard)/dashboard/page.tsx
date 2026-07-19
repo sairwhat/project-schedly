@@ -181,7 +181,7 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="mx-auto max-w-4xl space-y-4 py-10">
+    <div className="mx-auto max-w-4xl space-y-4">
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
           {greeting}, {firstName}
