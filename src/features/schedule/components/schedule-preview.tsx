@@ -1,5 +1,11 @@
 "use client";
 
+import { useState } from "react";
+import {
+  Dialog,
+  DialogContent,
+} from "@/components/ui/dialog";
+
 type ClassData = {
   id: string;
   subject: string;
@@ -23,10 +29,6 @@ type Props = {
   capture?: boolean;
 };
 
-function classLabel(c: ClassData): string {
-  return c.shortName?.trim() || c.code?.trim() || c.subject;
-}
-
 const ALL_DAYS = [
   "monday",
   "tuesday",
@@ -47,15 +49,23 @@ const DAY_LABELS: Record<string, string> = {
   sunday: "Sun",
 };
 
+const DAY_FULL: Record<string, string> = {
+  monday: "Monday",
+  tuesday: "Tuesday",
+  wednesday: "Wednesday",
+  thursday: "Thursday",
+  friday: "Friday",
+  saturday: "Saturday",
+  sunday: "Sunday",
+};
+
+function classLabel(c: ClassData): string {
+  return c.shortName?.trim() || c.code?.trim() || c.subject;
+}
+
 function timeToMinutes(t: Date): number {
   const d = new Date(t);
   return d.getHours() * 60 + d.getMinutes();
-}
-
-function minutesToTime(m: number): string {
-  const h = Math.floor(m / 60);
-  const m2 = m % 60;
-  return `${String(h).padStart(2, "0")}:${String(m2).padStart(2, "0")}`;
 }
 
 function minutesTo12h(m: number): string {
@@ -67,8 +77,13 @@ function minutesTo12h(m: number): string {
   return `${h}:${String(m2).padStart(2, "0")} ${ampm}`;
 }
 
+function formatTimeRange(start: Date, end: Date): string {
+  return `${minutesTo12h(timeToMinutes(start))} – ${minutesTo12h(timeToMinutes(end))}`;
+}
+
 export function SchedulePreview({ classes, filename = "schedule.png", scale, capture }: Props) {
   const activeDays = ALL_DAYS.filter((day) => classes.some((c) => c.days.includes(day)));
+  const [selected, setSelected] = useState<ClassData | null>(null);
 
   if (activeDays.length === 0) {
     return (
@@ -140,34 +155,51 @@ export function SchedulePreview({ classes, filename = "schedule.png", scale, cap
                     <div className={isCapture ? "flex h-full min-h-[120px] items-center justify-center rounded-lg bg-muted/30" : "flex h-full min-h-[44px] items-center justify-center rounded-md bg-muted/30"} />
                   ) : (
                     <div className={isCapture ? "flex flex-col gap-3" : "flex flex-col gap-1"}>
-                      {items.map((c) => (
-                        <div
-                          key={c.id}
-                          className={isCapture ? "rounded-lg p-4 text-center" : "rounded-md p-1 text-center"}
-                          style={{ backgroundColor: c.color + "1f", color: c.color }}
-                          title={
-                            !isCapture
-                              ? [
-                                  c.subject,
-                                  c.code && `Code: ${c.code}`,
-                                  c.instructor && `Instructor: ${c.instructor}`,
-                                  c.room && `Room: ${c.room}`,
-                                  `${minutesTo12h(timeToMinutes(c.startTime))}–${minutesTo12h(timeToMinutes(c.endTime))}`,
-                                ]
-                                  .filter(Boolean)
-                                  .join("\n")
-                              : undefined
-                          }
-                        >
-                          <div className={isCapture ? "text-2xl font-semibold leading-tight break-words" : "text-[10px] font-semibold leading-tight break-words sm:text-[10px]"}>
-                            {classLabel(c)}
+                      {items.map((c) => {
+                        const tooltip = !isCapture
+                          ? [
+                              c.subject,
+                              c.code && `Code: ${c.code}`,
+                              c.instructor && `Instructor: ${c.instructor}`,
+                              c.room && `Room: ${c.room}`,
+                              formatTimeRange(c.startTime, c.endTime),
+                            ]
+                              .filter(Boolean)
+                              .join("\n")
+                          : undefined;
+
+                        const cell = (
+                          <div
+                            className={isCapture ? "rounded-lg p-4 text-center" : "rounded-md p-1 text-center"}
+                            style={{ backgroundColor: c.color + "1f", color: c.color }}
+                          >
+                            <div className={isCapture ? "text-2xl font-semibold leading-tight break-words" : "text-[10px] font-semibold leading-tight break-words sm:text-[10px]"}>
+                              {classLabel(c)}
+                            </div>
+                            <div className={isCapture ? "text-lg opacity-80 leading-tight" : "mt-0.5 text-[9px] opacity-80 leading-tight"}>
+                              {minutesTo12h(timeToMinutes(c.startTime))}–
+                              {minutesTo12h(timeToMinutes(c.endTime))}
+                            </div>
                           </div>
-                          <div className={isCapture ? "text-lg opacity-80 leading-tight" : "mt-0.5 text-[9px] opacity-80 leading-tight"}>
-                            {minutesTo12h(timeToMinutes(c.startTime))}–
-                            {minutesTo12h(timeToMinutes(c.endTime))}
-                          </div>
-                        </div>
-                      ))}
+                        );
+
+                        if (isCapture) {
+                          return <div key={c.id} title={tooltip}>{cell}</div>;
+                        }
+
+                        return (
+                          <button
+                            key={c.id}
+                            type="button"
+                            onClick={() => setSelected(c)}
+                            title={tooltip}
+                            aria-label={`${classLabel(c)} details`}
+                            className="block w-full cursor-pointer rounded-md text-left outline-none transition-transform focus-visible:ring-2 focus-visible:ring-primary active:scale-[0.98]"
+                          >
+                            {cell}
+                          </button>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -176,6 +208,65 @@ export function SchedulePreview({ classes, filename = "schedule.png", scale, cap
           )}
         </div>
       </div>
+
+      <ClassInfoCard cls={selected} onClose={() => setSelected(null)} />
     </div>
+  );
+}
+
+function ClassInfoCard({ cls, onClose }: { cls: ClassData | null; onClose: () => void }) {
+  if (!cls) return null;
+
+  const details: Array<{ label: string; value: string }> = [
+    { label: "Subject", value: cls.subject },
+    { label: "Room", value: cls.room ?? "" },
+    { label: "Section", value: cls.section ?? "" },
+    { label: "Days", value: cls.days.map((d) => DAY_FULL[d]).join(", ") },
+    { label: "Time", value: formatTimeRange(cls.startTime, cls.endTime) },
+  ].filter((d) => d.value.trim() !== "");
+
+  return (
+    <Dialog open={cls !== null} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="w-[calc(100%-2rem)] max-w-sm overflow-hidden p-0 sm:max-w-sm">
+        {/* MD3-style info card */}
+        <div className="flex flex-col">
+          <div
+            className="flex items-center gap-3 px-5 pt-5"
+            style={{ color: cls.color }}
+          >
+            <span
+              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-lg font-bold"
+              style={{ backgroundColor: cls.color + "1f", color: cls.color }}
+            >
+              {(classLabel(cls)[0] ?? "?").toUpperCase()}
+            </span>
+            <div className="min-w-0">
+              <h2 className="truncate text-xl font-bold leading-tight text-foreground">
+                {classLabel(cls)}
+              </h2>
+              <p className="truncate text-sm text-muted-foreground">{cls.subject}</p>
+            </div>
+          </div>
+
+          <div className="mt-4 space-y-0 px-5 pb-5">
+            {details.map((d, i) => (
+              <div
+                key={d.label}
+                className={`flex items-start justify-between gap-4 py-3 ${
+                  i === 0 ? "" : "border-t border-border/60"
+                }`}
+              >
+                <span className="shrink-0 text-sm font-medium text-muted-foreground">
+                  {d.label}
+                </span>
+                <span className="text-right text-sm font-medium text-foreground break-words">
+                  {d.value}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }

@@ -34,7 +34,7 @@ export function useAuth() {
       const result = await retry(() => authClient.signIn.email({
         email: data.email,
         password: data.password,
-        callbackURL: "/schedule",
+        callbackURL: "/dashboard",
       }));
       return result;
     },

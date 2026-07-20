@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/features/auth/hooks/use-auth";
 import { useUpload } from "@/features/upload";
 import { ScheduleReview } from "@/features/upload";
@@ -11,13 +12,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
 import {
   Camera, Image, AlertCircle, CheckCircle, ArrowLeft,
   Plus, Calendar, ChevronRight, Trash2,
@@ -55,10 +49,11 @@ type UserWithExtras = {
   lastName?: string;
 } & Record<string, unknown>;
 
-type Phase = "list" | "view" | "upload-select" | "review" | "saved";
+type Phase = "list" | "view" | "upload-select" | "review";
 
 export default function SchedulePage() {
   const { user, isLoading: authLoading } = useAuth();
+  const router = useRouter();
   const u = user as UserWithExtras | null;
 
   const [phase, setPhase] = useState<Phase>("list");
@@ -69,7 +64,6 @@ export default function SchedulePage() {
   const [schedules, setSchedules] = useState<ScheduleData[]>([]);
   const [loadingSchedules, setLoadingSchedules] = useState(true);
   const [selectedSchedule, setSelectedSchedule] = useState<ScheduleData | null>(null);
-  const [detailClassId, setDetailClassId] = useState<string | null>(null);
 
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -143,10 +137,9 @@ export default function SchedulePage() {
   };
 
   const handleSaved = async (_scheduleId: string) => {
-    setPhase("saved");
     setValidationIssues([]);
-    const data = await getUserSchedules();
-    setSchedules(data as ScheduleData[]);
+    await getUserSchedules();
+    router.push("/dashboard");
   };
 
   const handleBackToList = () => {
@@ -177,22 +170,6 @@ export default function SchedulePage() {
               }
             </p>
           </div>
-
-          {/* === SAVED SUCCESS === */}
-          {phase === "saved" && (
-            <div className="flex flex-col items-center justify-center rounded-2xl border border-green-200 bg-green-50 px-6 py-16 text-center dark:border-green-800 dark:bg-green-950">
-              <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-green-100 dark:bg-green-900">
-                <CheckCircle className="h-7 w-7 text-green-600 dark:text-green-400" />
-              </div>
-              <h3 className="text-lg font-semibold text-green-900 dark:text-green-100">Schedule Saved!</h3>
-              <p className="mt-1 max-w-xs text-sm text-green-700 dark:text-green-300">
-                Your classes have been saved to your timetable.
-              </p>
-              <Button className="mt-5" onClick={handleBackToList}>
-                Back to Schedules
-              </Button>
-            </div>
-          )}
 
           {/* === REVIEW === */}
           {phase === "review" && (
@@ -347,38 +324,6 @@ export default function SchedulePage() {
                 classes={selectedSchedule.classes}
                 filename={`${selectedSchedule.title}.png`}
               />
-
-              <div className="mt-4">
-                <h3 className="mb-2 text-sm font-medium text-muted-foreground">Classes</h3>
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                  {selectedSchedule.classes.map((c) => (
-                    <button
-                      key={c.id}
-                      type="button"
-                      onClick={() => setDetailClassId(c.id)}
-                      className="flex flex-col items-start rounded-lg border border-border/60 bg-card p-2.5 text-left transition-colors hover:border-primary/50"
-                    >
-                      <span
-                        className="text-xs font-semibold leading-tight break-words"
-                        style={{ color: c.color }}
-                      >
-                        {c.shortName?.trim() || c.code?.trim() || c.subject}
-                      </span>
-                      <span className="mt-0.5 text-[10px] text-muted-foreground">
-                        {c.days.map((d) => d.slice(0, 2)).join("")}{" "}
-                        {new Date(c.startTime).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}–
-                        {new Date(c.endTime).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <ClassDetailDialog
-                cls={selectedSchedule.classes.find((c) => c.id === detailClassId) || null}
-                open={detailClassId !== null}
-                onOpenChange={(o) => { if (!o) setDetailClassId(null); }}
-              />
             </div>
           )}
 
@@ -497,58 +442,5 @@ export default function SchedulePage() {
         </div>
       </main>
     </div>
-  );
-}
-
-const DAY_FULL: Record<string, string> = {
-  monday: "Monday", tuesday: "Tuesday", wednesday: "Wednesday",
-  thursday: "Thursday", friday: "Friday", saturday: "Saturday", sunday: "Sunday",
-};
-
-function fmtTime(t: Date): string {
-  return new Date(t).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-}
-
-function ClassDetailDialog({
-  cls,
-  open,
-  onOpenChange,
-}: {
-  cls: ClassData | null;
-  open: boolean;
-  onOpenChange: (o: boolean) => void;
-}) {
-  if (!cls) return null;
-  const rows: Array<[string, string | null]> = [
-    ["Subject", cls.subject],
-    ["Code", cls.code],
-    ["Instructor", cls.instructor],
-    ["Room", cls.room],
-    ["Section", cls.section],
-    ["Block", cls.block],
-    ["Days", cls.days.map((d) => DAY_FULL[d]).join(", ")],
-    ["Time", `${fmtTime(cls.startTime)} – ${fmtTime(cls.endTime)}`],
-  ];
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-sm">
-        <DialogHeader>
-          <DialogTitle className="break-words" style={{ color: cls.color }}>
-            {cls.shortName?.trim() || cls.code?.trim() || cls.subject}
-          </DialogTitle>
-          <DialogDescription className="break-words">{cls.subject}</DialogDescription>
-        </DialogHeader>
-        <div className="divide-y divide-border/60">
-          {rows
-            .filter(([, v]) => v && v.trim() !== "")
-            .map(([label, value]) => (
-              <div key={label} className="flex items-start justify-between gap-3 py-2">
-                <span className="shrink-0 text-xs font-medium text-muted-foreground">{label}</span>
-                <span className="text-right text-sm break-words">{value}</span>
-              </div>
-            ))}
-        </div>
-      </DialogContent>
-    </Dialog>
   );
 }
