@@ -15,9 +15,9 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   const showButton = !open;
 
   const sidebarWrap = [
-    "fixed right-3 top-3 bottom-3 z-40 w-[300px] max-w-[calc(100vw-1.5rem)] transition-transform duration-300 ease-out will-change-transform",
-    "max-h-[70vh] md:max-h-none",
-    open ? "translate-x-0" : "translate-x-full",
+    "fixed right-3 top-3 z-40 w-[300px] max-w-[calc(100vw-1.5rem)] transition-transform duration-300 ease-out will-change-transform",
+    "max-h-[70vh] md:max-h-[calc(100vh-1.5rem)]",
+    open ? "translate-y-0" : "-translate-y-[120%]",
   ].join(" ");
 
   return (
