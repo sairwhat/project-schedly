@@ -18,11 +18,20 @@ android {
         }
     }
     signingConfigs {
+        // Local release signing. Credentials are read from android/local.properties
+        // (gitignored). Falls back to the bundled release-key.keystore so a plain
+        // `./gradlew assembleRelease` works out of the box in Android Studio.
+        // Generate/replace android/app/release-key.keystore as needed.
         release {
-            storeFile file('release-key.keystore')
-            storePassword 'schedly123'
-            keyAlias 'schedly'
-            keyPassword 'schedly123'
+            def keystoreProps = new Properties()
+            def propsFile = rootProject.file('../local.properties')
+            if (propsFile.exists()) {
+                keystoreProps.load(propsFile.newDataInputStream())
+            }
+            storeFile file(keystoreProps.getProperty('RELEASE_STORE_FILE', 'release-key.keystore'))
+            storePassword keystoreProps.getProperty('RELEASE_STORE_PASSWORD', 'SchedlyRelease2024!')
+            keyAlias keystoreProps.getProperty('RELEASE_KEY_ALIAS', 'schedly')
+            keyPassword keystoreProps.getProperty('RELEASE_KEY_PASSWORD', 'SchedlyRelease2024!')
         }
     }
     buildTypes {
