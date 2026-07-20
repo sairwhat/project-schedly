@@ -226,47 +226,49 @@ function ClassInfoCard({ cls, onClose }: { cls: ClassData | null; onClose: () =>
   ].filter((d) => d.value.trim() !== "");
 
   return (
-    <Dialog open={cls !== null} onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className="w-[calc(100%-2rem)] max-w-sm overflow-hidden p-0 sm:max-w-sm">
-        {/* MD3-style info card */}
-        <div className="flex flex-col">
-          <div
-            className="flex items-center gap-3 px-5 pt-5"
-            style={{ color: cls.color }}
-          >
-            <span
-              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-lg font-bold"
-              style={{ backgroundColor: cls.color + "1f", color: cls.color }}
+      <Dialog open={cls !== null} onOpenChange={(o) => { if (!o) onClose(); }}>
+        <DialogContent className="w-[calc(100%-2rem)] max-w-sm overflow-hidden p-0 sm:max-w-md">
+          {/* MD3-style info card */}
+          <div className="flex flex-col">
+            <div
+              className="flex items-start gap-3 px-5 pt-5"
+              style={{ color: cls.color }}
             >
-              {(classLabel(cls)[0] ?? "?").toUpperCase()}
-            </span>
-            <div className="min-w-0">
-              <h2 className="truncate text-xl font-bold leading-tight text-foreground">
-                {classLabel(cls)}
-              </h2>
-              <p className="truncate text-sm text-muted-foreground">{cls.subject}</p>
+              <span
+                className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-lg font-bold"
+                style={{ backgroundColor: cls.color + "1f", color: cls.color }}
+              >
+                {(classLabel(cls)[0] ?? "?").toUpperCase()}
+              </span>
+              <div className="min-w-0 flex-1">
+                <h2 className="text-xl font-bold leading-tight text-foreground break-words">
+                  {classLabel(cls)}
+                </h2>
+                <p className="mt-0.5 text-sm text-muted-foreground break-words">
+                  {cls.subject}
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-4 space-y-0 px-5 pb-5">
+              {details.map((d, i) => (
+                <div
+                  key={d.label}
+                  className={`flex items-start justify-between gap-4 py-3 ${
+                    i === 0 ? "" : "border-t border-border/60"
+                  }`}
+                >
+                  <span className="shrink-0 text-sm font-medium text-muted-foreground">
+                    {d.label}
+                  </span>
+                  <span className="max-w-[60%] text-right text-sm font-medium text-foreground break-words">
+                    {d.value}
+                  </span>
+                </div>
+              ))}
             </div>
           </div>
-
-          <div className="mt-4 space-y-0 px-5 pb-5">
-            {details.map((d, i) => (
-              <div
-                key={d.label}
-                className={`flex items-start justify-between gap-4 py-3 ${
-                  i === 0 ? "" : "border-t border-border/60"
-                }`}
-              >
-                <span className="shrink-0 text-sm font-medium text-muted-foreground">
-                  {d.label}
-                </span>
-                <span className="text-right text-sm font-medium text-foreground break-words">
-                  {d.value}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </DialogContent>
-    </Dialog>
+        </DialogContent>
+      </Dialog>
   );
 }
