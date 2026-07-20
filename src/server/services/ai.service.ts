@@ -47,16 +47,24 @@ export const aiService = {
       if (Array.isArray(aiClasses) && aiClasses.length > 0) {
         const transformed = {
           semester: (raw as Record<string, unknown>)?.semester as string ?? null,
-          classes: aiClasses.map((c: Record<string, unknown>) => ({
-            subject: String(c.subject ?? ""),
-            code: c.courseCode ? String(c.courseCode) : (c.code as string ?? null),
-            instructor: c.instructor as string ?? null,
-            room: c.room as string ?? null,
-            section: c.section as string ?? null,
-            days: [String(c.day ?? "").toLowerCase()],
-            startTime: c.startTime as string ?? "00:00",
-            endTime: c.endTime as string ?? "00:00",
-          })),
+          classes: aiClasses.map((c: Record<string, unknown>) => {
+            // Accept both days array and single day string for compatibility
+            const days: string[] = Array.isArray(c.days)
+              ? (c.days as string[]).map((d: string) => d.toLowerCase())
+              : c.day
+                ? [String(c.day).toLowerCase()]
+                : [];
+            return {
+              subject: String(c.subject ?? ""),
+              code: c.courseCode ? String(c.courseCode) : (c.code as string ?? null),
+              instructor: c.instructor as string ?? null,
+              room: c.room as string ?? null,
+              section: c.section as string ?? null,
+              days,
+              startTime: c.startTime as string ?? "00:00",
+              endTime: c.endTime as string ?? "00:00",
+            };
+          }),
           metadata: {
             totalClasses: aiClasses.length,
             confidence: ((raw as Record<string, unknown>)?.metadata as Record<string, unknown>)?.confidence as number ?? 0.5,

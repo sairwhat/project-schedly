@@ -12,8 +12,8 @@ export const aiClassSchema = z.object({
   subject_confidence: z.number().min(0).max(1).optional(),
   courseCode: z.string().nullable().default(null),
   courseCode_confidence: z.number().min(0).max(1).optional(),
-  day: aiDayEnum,
-  day_confidence: z.number().min(0).max(1).optional(),
+  days: z.array(aiDayEnum).min(1),
+  days_confidence: z.number().min(0).max(1).optional(),
   startTime: z.string().regex(/^\d{2}:\d{2}$/),
   startTime_confidence: z.number().min(0).max(1).optional(),
   endTime: z.string().regex(/^\d{2}:\d{2}$/),
@@ -128,7 +128,7 @@ export function transformAiOutputToInternal(aiOutput: AiValidationResult): Extra
   const issues = aiOutput.issues || [];
 
   const classes = aiOutput.classes.map((aiClass) => {
-    const dayLower = aiClass.day.toLowerCase() as typeof daysOfWeek[number];
+    const lowered = aiClass.days.map((d) => d.toLowerCase()) as typeof daysOfWeek[number][];
 
     return {
       subject: aiClass.subject,
@@ -137,7 +137,7 @@ export function transformAiOutputToInternal(aiOutput: AiValidationResult): Extra
       room: aiClass.room,
       section: aiClass.section,
       block: aiClass.block,
-      days: [dayLower],
+      days: lowered,
       startTime: aiClass.startTime,
       endTime: aiClass.endTime,
       confidence: aiClass.startTime_confidence ?? aiOutput.overallConfidence ?? 1,

@@ -23,9 +23,23 @@ const VALIDATION_MODELS = [
 
 const RETRY_DELAYS = [1000, 3000];
 
-const SCHEDULE_EXTRACTION_PROMPT = `You are a schedule extraction AI. Treat the uploaded image as a structured class schedule table — NOT as generic OCR text.
+const SCHEDULE_EXTRACTION_PROMPT = `Treat the uploaded image as a structured class schedule, not plain OCR text. First understand the table layout (rows, columns, merged cells, headers, and relationships) before extracting data.
 
-Extract only real class entries by identifying the relationship between Subject, Day, Time, and Room within the table structure (rows, columns, merged cells, time slots, day headers).
+A unique class is identified by (subject + room + startTime + endTime). If the same class appears on multiple meeting days with the same room and time, merge those days into a single record using a days array instead of creating duplicate classes. Only create separate records when the time or room is different. This rule must work for any day format (e.g., M, T, W, TH, F, SAT, SUN, MW, TF, MWF, TTH, or any school-specific notation).
+
+Expand any day abbreviations into full day names in the days array:
+- M, MON → "Monday"
+- T, TUE → "Tuesday"  
+- W, WED → "Wednesday"
+- TH, THU → "Thursday"
+- F, FRI → "Friday"
+- SAT → "Saturday"
+- SUN → "Sunday"
+- MW → ["Monday", "Wednesday"]
+- TF → ["Tuesday", "Thursday"]
+- TTH → ["Tuesday", "Thursday"]
+- MWF → ["Monday", "Wednesday", "Friday"]
+- MTW → ["Monday", "Tuesday", "Wednesday"]
 
 For each real class entry, extract:
 - subject: The full name of the subject/course
@@ -34,22 +48,12 @@ For each real class entry, extract:
 - room: The room number or location
 - section: The section number or identifier
 - block: The block/group identifier (e.g., "BSCS-1A")
-- day: The day of the week (e.g., "Monday", "Tuesday")
+- days: Array of meeting days (expand all abbreviations to full day names)
 - startTime: 24-hour format "HH:MM"
 - endTime: 24-hour format "HH:MM"
 - notes: Any additional notes about the class
 
 Convert any 12-hour time (with AM/PM) to 24-hour. Examples: "9:00 AM" -> "09:00", "1:00 PM" -> "13:00", "12:00 AM" -> "00:00", "12:00 PM" -> "12:00"
-
-CRITICAL — Deduplication Rule:
-A class is unique ONLY if the combination of (subject + day + startTime + endTime + room) is unique.
-If the same subject appears multiple times with identical day, startTime, endTime, and room, keep only ONE entry.
-Before outputting, perform a self-validation pass: remove all duplicate classes based on (subject, day, startTime, endTime, room).
-
-MUST IGNORE:
-- Headers, legends, decorative elements, empty cells, page footers, logos
-- Repeated OCR text that does not represent a real class
-- Any text that is not part of a structured class entry
 
 Return ONLY valid JSON in this exact format:
 {
@@ -58,7 +62,7 @@ Return ONLY valid JSON in this exact format:
     {
       "subject": "Programming 2",
       "courseCode": "CS102",
-      "day": "Monday",
+      "days": ["Monday", "Wednesday"],
       "startTime": "07:30",
       "endTime": "09:00",
       "room": "Lab 301",
@@ -78,19 +82,34 @@ Return ONLY valid JSON in this exact format:
 Rules:
 - Use full day names (Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday)
 - Use 24-hour time format (HH:MM)
+- Use a days ARRAY (never a single day string)
 - If a field is not visible, set it to null
 - If the image is not a schedule, return {"semester": null, "classes": [], "metadata": {"totalClasses": 0, "confidence": 0, "notes": "not_a_schedule"}}
 - NEVER create duplicate classes
-- Never invent missing information — leave unknown fields as null
-- If uncertain about any value, return null instead of guessing
-- Output only clean, validated JSON ready for database insertion`;
+- Remove duplicate detections, ignore repeated OCR text, never hallucinate missing information
+- Perform a final self-validation to ensure there are no duplicate classes before returning the result`;
 
-const VALIDATION_PROMPT = `You are a schedule validation AI. Review the extracted class data below and validate every field.
+const VALIDATION_PROMPT = `Treat the uploaded image as a structured class schedule, not plain OCR text. First understand the table layout (rows, columns, merged cells, headers, and relationships) before extracting data.
+
+A unique class is identified by (subject + room + startTime + endTime). If the same class appears on multiple meeting days with the same room and time, merge those days into a single record using a days array instead of creating duplicate classes. Only create separate records when the time or room is different. This rule must work for any day format (e.g., M, T, W, TH, F, SAT, SUN, MW, TF, MWF, TTH, or any school-specific notation).
+
+Expand any day abbreviations into full day name arrays:
+- M, MON → "Monday"
+- T, TUE → "Tuesday"
+- W, WED → "Wednesday"
+- TH, THU → "Thursday"
+- F, FRI → "Friday"
+- SAT → "Saturday"
+- SUN → "Sunday"
+- MW → ["Monday", "Wednesday"]
+- TF → ["Tuesday", "Thursday"]
+- TTH → ["Tuesday", "Thursday"]
+- MWF → ["Monday", "Wednesday", "Friday"]
 
 For each class, check:
-1. Valid day name (Monday-Sunday, normalized to proper case)
+1. Valid days (Monday-Sunday, stored as an array, normalized to proper case)
 2. Valid time format (HH:MM, 24-hour)
-3. No duplicate classes — a class is unique only if (subject + day + startTime + endTime + room) is unique. If a duplicate exists, keep only one entry.
+3. No duplicate classes — a class is unique only if (subject + room + startTime + endTime) is unique. The days field is NOT part of the unique key. If two entries have the same subject, room, startTime, and endTime but different day codes, MERGE their days into one array.
 4. No impossible times (endTime must be after startTime)
 5. No overlapping classes on the same day
 6. Missing fields that should be flagged
@@ -102,15 +121,16 @@ Automatically normalize:
 - 7-9 → 07:00-09:00
 - Rm301 → Room 301
 - Any 12h time with AM/PM → 24h format
+- Expand combined day abbreviations into full day name arrays
 
 DEDUPLICATION — This is critical:
-- Before returning, perform a self-validation pass to remove ALL duplicate classes based on (subject, day, startTime, endTime, room).
-- If the same subject appears with identical day, time, and room, keep only one entry.
+- Before returning, perform a self-validation pass to merge duplicate classes based on (subject, room, startTime, endTime). Combine their days arrays.
+- Remove duplicate detections, ignore repeated OCR text, never hallucinate missing information
 
 For each class, assign a confidence score (0-1) for each field:
 - subject confidence
 - courseCode confidence
-- day confidence
+- days confidence
 - startTime / endTime confidence
 - room confidence
 - instructor confidence
@@ -127,8 +147,8 @@ Return ONLY valid JSON in this exact format:
       "subject_confidence": 0.99,
       "courseCode": "CS102",
       "courseCode_confidence": 0.99,
-      "day": "Monday",
-      "day_confidence": 0.99,
+      "days": ["Monday", "Wednesday"],
+      "days_confidence": 0.99,
       "startTime": "07:30",
       "startTime_confidence": 0.99,
       "endTime": "09:00",
@@ -143,12 +163,14 @@ Return ONLY valid JSON in this exact format:
     }
   ],
   "issues": [
-    {"type": "normalized", "message": "Normalized TUE → Tuesday for class 1", "classIndex": 0}
+    {"type": "normalized", "message": "Expanded MW → Monday,Wednesday for class 1", "classIndex": 0}
   ],
   "overallConfidence": 0.97
 }
 
-If no issues, return "issues": [].`;
+If no issues, return "issues": [].
+
+Perform a final self-validation to ensure there are no duplicate classes before returning the result.`;
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -344,6 +366,7 @@ export function checkScheduleConsistency(data: {
   classes?: Array<{
     subject?: string | null;
     courseCode?: string | null;
+    days?: string[] | null;
     day?: string | null;
     startTime?: string | null;
     endTime?: string | null;
@@ -357,14 +380,20 @@ export function checkScheduleConsistency(data: {
   for (let i = 0; i < (data.classes ?? []).length; i++) {
     const c = data.classes![i]!;
 
-    // Check required fields
+    // Support both days array and single day string
+    const daysList = c.days ?? (c.day ? [c.day] : []);
+
     if (!c.subject || c.subject.trim() === "") {
       issues.push({ type: "missing_field", classIndex: i, field: "subject", message: `Class ${i + 1} is missing subject` });
     }
-    if (!c.day || c.day.trim() === "") {
-      issues.push({ type: "missing_field", classIndex: i, field: "day", message: `Class ${i + 1} is missing day` });
-    } else if (!VALID_DAYS.has(c.day.toLowerCase().trim())) {
-      issues.push({ type: "invalid_day", classIndex: i, field: "day", message: `Class ${i + 1} has invalid day "${c.day}"` });
+    if (!daysList.length) {
+      issues.push({ type: "missing_field", classIndex: i, field: "days", message: `Class ${i + 1} is missing days` });
+    } else {
+      for (const d of daysList) {
+        if (!VALID_DAYS.has(d.toLowerCase().trim())) {
+          issues.push({ type: "invalid_day", classIndex: i, field: "days", message: `Class ${i + 1} has invalid day "${d}"` });
+        }
+      }
     }
     if (!c.startTime || c.startTime.trim() === "") {
       issues.push({ type: "missing_field", classIndex: i, field: "startTime", message: `Class ${i + 1} is missing startTime` });
@@ -416,6 +445,7 @@ export interface Conflict {
 
 export function detectConflicts(data: {
   classes?: Array<{
+    days?: string[] | null;
     day?: string | null;
     startTime?: string | null;
     endTime?: string | null;
@@ -429,11 +459,11 @@ export function detectConflicts(data: {
       const a = data.classes![i]!;
       const b = data.classes![j]!;
 
-      if (!a.day || !b.day || !a.startTime || !b.startTime || !a.endTime || !b.endTime) continue;
+      if (!a.startTime || !b.startTime || !a.endTime || !b.endTime) continue;
 
-      const dayA = a.day.toLowerCase().trim();
-      const dayB = b.day.toLowerCase().trim();
-      if (dayA !== dayB) continue;
+      const daysA = a.days ?? (a.day ? [a.day] : []);
+      const daysB = b.days ?? (b.day ? [b.day] : []);
+      if (!daysA.length || !daysB.length) continue;
 
       if (!TIME_PATTERN.test(a.startTime) || !TIME_PATTERN.test(a.endTime) ||
           !TIME_PATTERN.test(b.startTime) || !TIME_PATTERN.test(b.endTime)) continue;
@@ -445,12 +475,18 @@ export function detectConflicts(data: {
 
       // Check overlap: a starts before b ends AND a ends after b starts
       if (aStart < bEnd && aEnd > bStart) {
-        conflicts.push({
-          classA: i,
-          classB: j,
-          day: a.day,
-          message: `"${a.subject || `Class ${i + 1}`}" overlaps with "${b.subject || `Class ${j + 1}`}" on ${a.day} (${a.startTime}-${a.endTime} vs ${b.startTime}-${b.endTime})`,
-        });
+        // Check if any day overlaps
+        const normA = daysA.map((d: string) => d.toLowerCase().trim());
+        const normB = daysB.map((d: string) => d.toLowerCase().trim());
+        const sharedDays = normA.filter((d: string) => normB.includes(d));
+        if (sharedDays.length > 0) {
+          conflicts.push({
+            classA: i,
+            classB: j,
+            day: sharedDays[0]!,
+            message: `"${a.subject || `Class ${i + 1}`}" overlaps with "${b.subject || `Class ${j + 1}`}" on ${sharedDays[0]} (${a.startTime}-${a.endTime} vs ${b.startTime}-${b.endTime})`,
+          });
+        }
       }
     }
   }
