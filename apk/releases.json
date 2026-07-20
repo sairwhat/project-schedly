@@ -1,0 +1,130 @@
+﻿{
+    "current":  {
+                    "versionName":  "1.4.1",
+                    "versionCode":  10401
+                },
+    "next":  "1.4.2",
+    "generatedAt":  "2026-07-21",
+    "versions":  [
+                     {
+                         "versionName":  "1.4.2",
+                         "versionCode":  10402,
+                         "apkUrl":  "https://github.com/sairwhat/project-schedly/releases/download/v1.4.2/Schedly-1.4.2-release.apk",
+                         "updateMessage":  "New version 1.4.2 is now available with a home-screen timetable widget, compact subject labels, and a redesigned class info card!"
+                     },
+                     {
+                         "versionName":  "1.4.3",
+                         "versionCode":  10403,
+                         "apkUrl":  "https://github.com/sairwhat/project-schedly/releases/download/v1.4.3/Schedly-1.4.3-release.apk",
+                         "updateMessage":  "New version 1.4.3 is now available with a home-screen timetable widget, compact subject labels, and a redesigned class info card!"
+                     },
+                     {
+                         "versionName":  "1.4.4",
+                         "versionCode":  10404,
+                         "apkUrl":  "https://github.com/sairwhat/project-schedly/releases/download/v1.4.4/Schedly-1.4.4-release.apk",
+                         "updateMessage":  "New version 1.4.4 is now available with a home-screen timetable widget, compact subject labels, and a redesigned class info card!"
+                     },
+                     {
+                         "versionName":  "1.4.5",
+                         "versionCode":  10405,
+                         "apkUrl":  "https://github.com/sairwhat/project-schedly/releases/download/v1.4.5/Schedly-1.4.5-release.apk",
+                         "updateMessage":  "New version 1.4.5 is now available with a home-screen timetable widget, compact subject labels, and a redesigned class info card!"
+                     },
+                     {
+                         "versionName":  "1.4.6",
+                         "versionCode":  10406,
+                         "apkUrl":  "https://github.com/sairwhat/project-schedly/releases/download/v1.4.6/Schedly-1.4.6-release.apk",
+                         "updateMessage":  "New version 1.4.6 is now available with a home-screen timetable widget, compact subject labels, and a redesigned class info card!"
+                     },
+                     {
+                         "versionName":  "1.4.7",
+                         "versionCode":  10407,
+                         "apkUrl":  "https://github.com/sairwhat/project-schedly/releases/download/v1.4.7/Schedly-1.4.7-release.apk",
+                         "updateMessage":  "New version 1.4.7 is now available with a home-screen timetable widget, compact subject labels, and a redesigned class info card!"
+                     },
+                     {
+                         "versionName":  "1.4.8",
+                         "versionCode":  10408,
+                         "apkUrl":  "https://github.com/sairwhat/project-schedly/releases/download/v1.4.8/Schedly-1.4.8-release.apk",
+                         "updateMessage":  "New version 1.4.8 is now available with a home-screen timetable widget, compact subject labels, and a redesigned class info card!"
+                     },
+                     {
+                         "versionName":  "1.4.9",
+                         "versionCode":  10409,
+                         "apkUrl":  "https://github.com/sairwhat/project-schedly/releases/download/v1.4.9/Schedly-1.4.9-release.apk",
+                         "updateMessage":  "New version 1.4.9 is now available with a home-screen timetable widget, compact subject labels, and a redesigned class info card!"
+                     },
+                     {
+                         "versionName":  "1.5.0",
+                         "versionCode":  10500,
+                         "apkUrl":  "https://github.com/sairwhat/project-schedly/releases/download/v1.5.0/Schedly-1.5.0-release.apk",
+                         "updateMessage":  "New version 1.5.0 is now available with a home-screen timetable widget, compact subject labels, and a redesigned class info card!"
+                     },
+                     {
+                         "versionName":  "1.5.1",
+                         "versionCode":  10501,
+                         "apkUrl":  "https://github.com/sairwhat/project-schedly/releases/download/v1.5.1/Schedly-1.5.1-release.apk",
+                         "updateMessage":  "New version 1.5.1 is now available with a home-screen timetable widget, compact subject labels, and a redesigned class info card!"
+                     },
+                     {
+                         "versionName":  "1.5.2",
+                         "versionCode":  10502,
+                         "apkUrl":  "https://github.com/sairwhat/project-schedly/releases/download/v1.5.2/Schedly-1.5.2-release.apk",
+                         "updateMessage":  "New version 1.5.2 is now available with a home-screen timetable widget, compact subject labels, and a redesigned class info card!"
+                     },
+                     {
+                         "versionName":  "1.5.3",
+                         "versionCode":  10503,
+                         "apkUrl":  "https://github.com/sairwhat/project-schedly/releases/download/v1.5.3/Schedly-1.5.3-release.apk",
+                         "updateMessage":  "New version 1.5.3 is now available with a home-screen timetable widget, compact subject labels, and a redesigned class info card!"
+                     },
+                     {
+                         "versionName":  "1.5.4",
+                         "versionCode":  10504,
+                         "apkUrl":  "https://github.com/sairwhat/project-schedly/releases/download/v1.5.4/Schedly-1.5.4-release.apk",
+                         "updateMessage":  "New version 1.5.4 is now available with a home-screen timetable widget, compact subject labels, and a redesigned class info card!"
+                     },
+                     {
+                         "versionName":  "1.5.5",
+                         "versionCode":  10505,
+                         "apkUrl":  "https://github.com/sairwhat/project-schedly/releases/download/v1.5.5/Schedly-1.5.5-release.apk",
+                         "updateMessage":  "New version 1.5.5 is now available with a home-screen timetable widget, compact subject labels, and a redesigned class info card!"
+                     },
+                     {
+                         "versionName":  "1.5.6",
+                         "versionCode":  10506,
+                         "apkUrl":  "https://github.com/sairwhat/project-schedly/releases/download/v1.5.6/Schedly-1.5.6-release.apk",
+                         "updateMessage":  "New version 1.5.6 is now available with a home-screen timetable widget, compact subject labels, and a redesigned class info card!"
+                     },
+                     {
+                         "versionName":  "1.5.7",
+                         "versionCode":  10507,
+                         "apkUrl":  "https://github.com/sairwhat/project-schedly/releases/download/v1.5.7/Schedly-1.5.7-release.apk",
+                         "updateMessage":  "New version 1.5.7 is now available with a home-screen timetable widget, compact subject labels, and a redesigned class info card!"
+                     },
+                     {
+                         "versionName":  "1.5.8",
+                         "versionCode":  10508,
+                         "apkUrl":  "https://github.com/sairwhat/project-schedly/releases/download/v1.5.8/Schedly-1.5.8-release.apk",
+                         "updateMessage":  "New version 1.5.8 is now available with a home-screen timetable widget, compact subject labels, and a redesigned class info card!"
+                     },
+                     {
+                         "versionName":  "1.5.9",
+                         "versionCode":  10509,
+                         "apkUrl":  "https://github.com/sairwhat/project-schedly/releases/download/v1.5.9/Schedly-1.5.9-release.apk",
+                         "updateMessage":  "New version 1.5.9 is now available with a home-screen timetable widget, compact subject labels, and a redesigned class info card!"
+                     },
+                     {
+                         "versionName":  "1.6.0",
+                         "versionCode":  10600,
+                         "apkUrl":  "https://github.com/sairwhat/project-schedly/releases/download/v1.6.0/Schedly-1.6.0-release.apk",
+                         "updateMessage":  "New version 1.6.0 is now available with a home-screen timetable widget, compact subject labels, and a redesigned class info card!"
+                     },
+                     {
+                         "versionName":  "1.6.1",
+                         "versionCode":  10601,
+                         "apkUrl":  "https://github.com/sairwhat/project-schedly/releases/download/v1.6.1/Schedly-1.6.1-release.apk",
+                         "updateMessage":  "New version 1.6.1 is now available with a home-screen timetable widget, compact subject labels, and a redesigned class info card!"
+                     }
+                 ]
+}
