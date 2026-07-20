@@ -147,7 +147,6 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     console.error("[UPLOAD_API] Error:", error);
-    const detail = process.env.NODE_ENV === "development" ? `: ${message}` : "";
-    return NextResponse.json({ error: `Upload failed${detail}` }, { status: 500 });
+    return NextResponse.json({ error: `Upload failed: ${message}` }, { status: 500 });
   }
 }
