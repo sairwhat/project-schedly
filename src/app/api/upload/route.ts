@@ -48,7 +48,16 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const formData = await request.formData();
+    let formData: FormData;
+    try {
+      formData = await request.formData();
+    } catch (formErr) {
+      console.error("[UPLOAD_API] Failed to parse form data:", formErr);
+      return NextResponse.json(
+        { error: "Invalid upload request. Make sure you are sending a multipart/form-data file." },
+        { status: 400 }
+      );
+    }
     const file = formData.get("file") as File | null;
 
     if (!file) {
@@ -141,7 +150,9 @@ export async function POST(request: NextRequest) {
       metadata,
     });
   } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
     console.error("[UPLOAD_API] Error:", error);
-    return NextResponse.json({ error: "Upload failed" }, { status: 500 });
+    const detail = process.env.NODE_ENV === "development" ? `: ${message}` : "";
+    return NextResponse.json({ error: `Upload failed${detail}` }, { status: 500 });
   }
 }
