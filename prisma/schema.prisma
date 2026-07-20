@@ -153,13 +153,14 @@ model Reminder {
 }
 
 model Upload {
-  id           String       @id @default(uuid())
-  userId       String       @map("user_id")
-  scheduleId   String?      @map("schedule_id")
-  fileUrl      String       @map("file_url")
-  fileName     String       @map("file_name")
-  fileSize     Int          @map("file_size")
-  mimeType     String       @map("mime_type")
+    id           String       @id @default(uuid())
+    userId       String       @map("user_id")
+    scheduleId   String?      @map("schedule_id")
+    fileUrl      String       @map("file_url")
+    fileData     String?      @map("file_data")
+    fileName     String       @map("file_name")
+    fileSize     Int          @map("file_size")
+    mimeType     String       @map("mime_type")
   status       UploadStatus @default(pending)
   aiResult     Json?        @map("ai_result")
   errorMessage String?      @map("error_message")

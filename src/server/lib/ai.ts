@@ -307,6 +307,25 @@ export async function extractScheduleFromImage(imageUrl: string) {
 
   const { base64, contentType } = await fetchAndPreprocessImage(imageUrl);
 
+  return runExtraction(models, base64, contentType);
+}
+
+export async function extractScheduleFromBuffer(buffer: Buffer, mimeType = "image/jpeg") {
+  const configuredModel = process.env.OPENROUTER_MODEL;
+
+  const models = configuredModel
+    ? [configuredModel, ...VISION_MODELS.filter((m) => m !== configuredModel)]
+    : VISION_MODELS;
+
+  console.log("[AI] Image extraction (buffer) — models:", models.join(", "));
+
+  const processed = await preprocessImage(buffer);
+  const base64 = processed.toString("base64");
+
+  return runExtraction(models, base64, "image/jpeg");
+}
+
+function runExtraction(models: string[], base64: string, contentType: string) {
   return withRetry(
     (model) =>
       callOpenRouter(

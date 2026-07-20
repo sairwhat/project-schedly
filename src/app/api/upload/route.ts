@@ -1,5 +1,4 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { put } from "@vercel/blob";
 import { auth } from "@/server/lib/auth";
 import { db } from "@/server/db/client";
 import { uploadService } from "@/server/services/upload.service";
@@ -7,33 +6,8 @@ import { uploadRepository } from "@/server/repositories/upload.repository";
 import { aiService } from "@/server/services/ai.service";
 import { detectImageMime, checkRateLimit, validateCsrf } from "@/server/lib/security";
 import { auditLog } from "@/server/lib/audit";
-import fs from "fs/promises";
-import path from "path";
-
-const BLOB_TOKEN = process.env.BLOB_READ_WRITE_TOKEN;
-const UPLOAD_DIR = path.join(process.cwd(), "public", "uploads");
 
 export const maxDuration = 60;
-
-type StoredFile = { url: string; key: string };
-
-async function storeFile(buffer: Uint8Array, mime: string, key: string): Promise<StoredFile> {
-  const blob = new Blob([Buffer.from(buffer)], { type: mime });
-
-  if (BLOB_TOKEN) {
-    const result = await put(key, blob, {
-      access: "public",
-      addRandomSuffix: false,
-      token: BLOB_TOKEN,
-    });
-    return { url: result.url, key };
-  }
-
-  const target = path.join(UPLOAD_DIR, key);
-  await fs.mkdir(path.dirname(target), { recursive: true });
-  await fs.writeFile(target, Buffer.from(buffer));
-  return { url: `/uploads/${key}`, key };
-}
 
 async function runBackgroundProcessing(uploadId: string, imageUrl: string) {
   if (!process.env.OPENROUTER_API_KEY) {
@@ -42,7 +16,16 @@ async function runBackgroundProcessing(uploadId: string, imageUrl: string) {
   }
 
   try {
-    const result = await aiService.processImage(imageUrl);
+    const record = await uploadRepository.findById(uploadId);
+    const fileData = record?.fileData;
+    let imageBuffer: Buffer | undefined;
+    if (fileData) {
+      const comma = fileData.indexOf(",");
+      const b64 = comma > -1 ? fileData.slice(comma + 1) : fileData;
+      imageBuffer = Buffer.from(b64, "base64");
+    }
+
+    const result = await aiService.processImage(imageUrl, imageBuffer);
 
     if (!result.success) {
       console.error("[UPLOAD_API] AI extraction error:", result.error.message);
@@ -120,15 +103,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "File must be an image (JPEG, PNG, GIF, WebP, or BMP)" }, { status: 400 });
     }
 
-    const ext = file.name.split(".").pop() || "jpg";
-    const key = `schedules/${session.user.id}/${crypto.randomUUID()}.${ext}`;
-
-    const stored = await storeFile(buffer, detectedMime, key);
+    const uploadId = crypto.randomUUID();
+    const base64 = Buffer.from(buffer).toString("base64");
 
     const upload = await db.upload.create({
       data: {
+        id: uploadId,
         userId: session.user.id,
-        fileUrl: stored.url,
+        fileUrl: `/api/upload/${uploadId}/image`,
+        fileData: `data:${detectedMime};base64,${base64}`,
         fileName: file.name,
         fileSize: file.size,
         mimeType: detectedMime,
@@ -141,15 +124,13 @@ export async function POST(request: NextRequest) {
     // Respond immediately so the request never times out on the client.
     // AI extraction runs in the background and the client polls for status.
     const origin = new URL(request.url).origin;
-    const absoluteUrl = stored.url.startsWith("http")
-      ? stored.url
-      : `${origin}${stored.url}`;
+    const absoluteUrl = `${origin}/api/upload/${upload.id}/image`;
 
     void runBackgroundProcessing(upload.id, absoluteUrl);
 
     return NextResponse.json({
       uploadId: upload.id,
-      fileUrl: stored.url,
+      fileUrl: `/api/upload/${upload.id}/image`,
       status: "processing",
     });
   } catch (error) {
