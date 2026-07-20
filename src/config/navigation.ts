@@ -41,19 +41,6 @@ export const navGroups: NavGroup[] = [
       { label: "Music", href: "/music", icon: "music" },
     ],
   },
-  {
-    title: "Preferences",
-    items: [
-      { label: "Profile", href: "/settings", icon: "user" },
-      { label: "Settings", href: "/settings", icon: "settings" },
-    ],
-  },
-  {
-    title: "Support",
-    items: [
-      { label: "Help & Feedback", href: "/feedback", icon: "life-buoy" },
-    ],
-  },
 ];
 
 export const mainNav: NavItem[] = [...primaryNav, ...navGroups.flatMap((g) => g.items)];
