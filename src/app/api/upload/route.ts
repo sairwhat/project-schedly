@@ -35,42 +35,6 @@ async function storeFile(buffer: Uint8Array, mime: string, key: string): Promise
   return { url: `/uploads/${key}`, key };
 }
 
-async function runBackgroundProcessing(uploadId: string, imageUrl: string) {
-  if (!process.env.OPENROUTER_API_KEY) {
-    await uploadService.updateStatus(uploadId, "completed");
-    return;
-  }
-
-  try {
-    const result = await aiService.processImage(imageUrl);
-
-    if (!result.success) {
-      console.error("[UPLOAD_API] AI extraction error:", result.error.message);
-      await uploadService.updateStatus(uploadId, "completed");
-      return;
-    }
-
-    const validClasses = result.data.classes.filter(
-      (c) => c.subject && c.days.length > 0 && c.startTime && c.endTime
-    );
-
-    const metadata = {
-      totalClasses: validClasses.length,
-      confidence: result.data.metadata.confidence,
-      notes: result.data.metadata.notes,
-    };
-
-    await uploadRepository.updateAiResult(
-      uploadId,
-      { classes: validClasses, metadata } as never,
-      "completed"
-    );
-  } catch (err) {
-    console.error("[UPLOAD_API] Background AI processing failed:", err);
-    await uploadService.updateStatus(uploadId, "completed");
-  }
-}
-
 export async function POST(request: NextRequest) {
   const session = await auth.api.getSession({ headers: request.headers });
 
@@ -149,19 +113,54 @@ export async function POST(request: NextRequest) {
 
     auditLog("upload.create", { userId: session.user.id, uploadId: upload.id, fileName: file.name });
 
-    // Respond immediately so the request never times out on the client.
-    // AI extraction runs in the background and the client polls for status.
+    // Process AI extraction within the request (maxDuration=60s).
+    // On serverless this keeps the function alive until extraction completes,
+    // which is more reliable than a background task that gets frozen.
     const origin = new URL(request.url).origin;
     const absoluteUrl = stored.url.startsWith("http")
       ? stored.url
       : `${origin}${stored.url}`;
 
-    void runBackgroundProcessing(upload.id, absoluteUrl);
+    let classes: Record<string, unknown>[] = [];
+    let metadata = { totalClasses: 0, confidence: 0, notes: null as string | null };
+
+    if (process.env.OPENROUTER_API_KEY) {
+      try {
+        const result = await aiService.processImage(absoluteUrl);
+        if (result.success) {
+          const valid = result.data.classes.filter(
+            (c: { subject?: string; days?: unknown[]; startTime?: string; endTime?: string }) =>
+              c.subject && c.days && c.days.length > 0 && c.startTime && c.endTime
+          );
+          classes = valid;
+          metadata = {
+            totalClasses: valid.length,
+            confidence: result.data.metadata.confidence,
+            notes: result.data.metadata.notes,
+          };
+          await uploadRepository.updateAiResult(
+            upload.id,
+            { classes: valid, metadata } as never,
+            "completed"
+          );
+        } else {
+          console.error("[UPLOAD_API] AI extraction error:", result.error.message);
+          await uploadService.updateStatus(upload.id, "completed");
+        }
+      } catch (aiErr) {
+        console.error("[UPLOAD_API] AI extraction error:", aiErr);
+        await uploadService.updateStatus(upload.id, "completed");
+      }
+    } else {
+      await uploadService.updateStatus(upload.id, "completed");
+    }
 
     return NextResponse.json({
       uploadId: upload.id,
       fileUrl: stored.url,
-      status: "processing",
+      classes,
+      metadata,
+      status: "completed",
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
