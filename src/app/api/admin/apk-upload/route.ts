@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
     const apkKey = `releases/Schedly-${clean}-release.apk`;
     const sourceUrl =
       String(apkUrl || "").trim() ||
-      `https://github.com/sairwhat/project-schedly/raw/master/apk/Schedly-${clean}-release.apk`;
+      `https://github.com/sairwhat/project-schedly/raw/master/release/Schedly-${clean}-release.apk`;
 
     const res = await fetch(sourceUrl);
     if (!res.ok || !res.body) {

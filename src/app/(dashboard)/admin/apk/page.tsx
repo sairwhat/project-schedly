@@ -46,9 +46,37 @@ export default function AdminApkPage() {
 
   const isAdmin = Boolean((user as Record<string, unknown> | null)?.isAdmin);
 
+  const [versionOptions, setVersionOptions] = useState<
+    Array<{ versionName: string; versionCode: number; apkUrl: string }>
+  >([]);
+
   const pushLog = (level: LogLine["level"], text: string) => {
     setLogs((prev) => [...prev, { ts: now(), level, text }]);
   };
+
+  // Load the version list for the combobox from release/releases.json.
+  useEffect(() => {
+    if (!isAdmin) return;
+    fetch(
+      "https://raw.githubusercontent.com/sairwhat/project-schedly/master/release/releases.json"
+    )
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: unknown) => {
+        const data = (d ?? {}) as { versions?: Array<{ versionName: string; versionCode: number; apkUrl: string }> };
+        const list: Array<{
+          versionName: string;
+          versionCode: number;
+          apkUrl: string;
+        }> = (data.versions ?? []).map((v) => ({
+          versionName: v.versionName,
+          versionCode: v.versionCode,
+          apkUrl: v.apkUrl,
+        }));
+        setVersionOptions(list);
+        if (list.length > 0 && !versionName) setVersionName(list[0]?.versionName ?? "");
+      })
+      .catch(() => pushLog("warn", "Could not load version list for dropdown."));
+  }, [isAdmin]);
 
   useEffect(() => {
     logEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -100,7 +128,7 @@ export default function AdminApkPage() {
     setLogs([]);
     const clean = cleanVersion.replace(/^v/i, "").trim();
     pushLog("info", `Preparing release v${clean}...`);
-    pushLog("info", `Source: apk/Schedly-${clean}-release.apk (from repo)`);
+    pushLog("info", `Source: release/Schedly-${clean}-release.apk (from repo)`);
     try {
       pushLog("info", "Server fetching APK and uploading to Blob...");
       const res = await fetch("/api/admin/apk-upload", {
@@ -187,13 +215,37 @@ export default function AdminApkPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="versionName">Version name (e.g. 1.4)</Label>
-            <Input
-              id="versionName"
-              value={versionName}
-              onChange={(e) => setVersionName(e.target.value)}
-              placeholder="1.4"
-            />
+            <Label htmlFor="versionName">Version name</Label>
+            {versionOptions.length > 0 ? (
+              <select
+                id="versionName"
+                value={versionName}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setVersionName(v);
+                  const opt = versionOptions.find((o) => o.versionName === v);
+                  if (opt && !updateMessage) {
+                    setUpdateMessage(
+                      `New version ${v} is now available with a home-screen timetable widget, compact subject labels, and a redesigned class info card!`
+                    );
+                  }
+                }}
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              >
+                {versionOptions.map((o) => (
+                  <option key={o.versionName} value={o.versionName}>
+                    {o.versionName} (code {o.versionCode})
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <Input
+                id="versionName"
+                value={versionName}
+                onChange={(e) => setVersionName(e.target.value)}
+                placeholder="1.4.2"
+              />
+            )}
           </div>
 
           <div className="space-y-2">
@@ -209,7 +261,7 @@ export default function AdminApkPage() {
           <div className="space-y-2">
             <Label htmlFor="apk">APK file (in repo)</Label>
             <p className="text-xs text-muted-foreground">
-              The APK is read from <code>apk/Schedly-{`{version}`}-release.apk</code> in the
+              The APK is read from <code>release/Schedly-{`{version}`}-release.apk</code> in the
               repository, then published to Blob storage. Optional: pick the local file to verify
               it exists.
             </p>
