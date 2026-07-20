@@ -66,6 +66,17 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Too many uploads. Try again later." }, { status: 429 });
   }
 
+  // Verify the session's user actually exists in the database.
+  // A stale better-auth cookie cache can reference a user that no longer
+  // exists, which would otherwise violate the uploads_user_id_fkey.
+  const dbUser = await db.user.findUnique({ where: { id: session.user.id } });
+  if (!dbUser) {
+    return NextResponse.json(
+      { error: "Your session is invalid. Please sign out and sign in again." },
+      { status: 401 }
+    );
+  }
+
   if (!validateCsrf(request)) {
     return NextResponse.json({ error: "Invalid request" }, { status: 403 });
   }
@@ -147,6 +158,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     console.error("[UPLOAD_API] Error:", error);
-    return NextResponse.json({ error: `Upload failed: ${message}` }, { status: 500 });
+    const uid = session?.user?.id ?? "NO_SESSION_USER";
+    return NextResponse.json({ error: `Upload failed: ${message} [uid=${uid}]` }, { status: 500 });
   }
 }
