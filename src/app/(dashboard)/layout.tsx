@@ -15,8 +15,8 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   const showButton = !open;
 
   const sidebarWrap = [
-    "sidebar-slide fixed right-3 top-16 z-40 w-[300px] max-w-[calc(100vw-1.5rem)] will-change-transform md:top-3",
-    "max-h-[70vh] md:max-h-[calc(100vh-1.5rem)]",
+    "sidebar-slide fixed right-3 z-40 w-[304px] max-w-[calc(100vw-1.5rem)] will-change-transform",
+    "top-16 max-h-[70vh] md:top-0 md:bottom-0 md:max-h-none md:right-0",
     open ? "translate-y-0" : "-translate-y-[130%]",
   ].join(" ");
 
