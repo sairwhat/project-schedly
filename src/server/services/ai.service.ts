@@ -1,4 +1,4 @@
-import { extractScheduleFromImage, extractScheduleFromBuffer, validateExtractedData, validateSchedule } from "@/server/lib/ai";
+import { extractScheduleFromImage, validateExtractedData, validateSchedule } from "@/server/lib/ai";
 import {
   aiValidationResultSchema,
   transformAiOutputToInternal,
@@ -7,12 +7,10 @@ import {
 import { ok, fail, type Result } from "@/server/lib/errors";
 
 export const aiService = {
-  async processImage(imageUrl: string, imageBuffer?: Buffer): Promise<Result<ExtractionResult>> {
+  async processImage(imageUrl: string): Promise<Result<ExtractionResult>> {
     try {
       // 1. Vision extraction (returns AI output format per architecture doc)
-      const raw = imageBuffer
-        ? await extractScheduleFromBuffer(imageBuffer)
-        : await extractScheduleFromImage(imageUrl);
+      const raw = await extractScheduleFromImage(imageUrl);
 
       // 2. Try validation/reasoning step using Hy3
       if (process.env.OPENROUTER_API_KEY && process.env.OPENROUTER_VALIDATION_ENABLED !== "false") {
