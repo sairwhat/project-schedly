@@ -41,7 +41,7 @@ Correctly interpret standard academic day abbreviations without guessing. Never 
 - SAT, SA → "Saturday"
 - SUN, SU → "Sunday"
 - MW → ["Monday", "Wednesday"]
-- TF → ["Tuesday", "Thursday"]
+- TF → ["Tuesday", "Friday"]
 - TTH, TH → ["Tuesday", "Thursday"] or ["Thursday"] depending on context
 - MWF → ["Monday", "Wednesday", "Friday"]
 - MTW → ["Monday", "Tuesday", "Wednesday"]
@@ -62,6 +62,7 @@ For each class, extract:
 - section: The section number or identifier
 - block: The block/group identifier (e.g., "BSCS-1A")
 - days: Array of meeting days (expand abbreviations to full day names)
+- dayCodes: Array of the RAW day abbreviation(s) exactly as printed on the schedule (e.g., "MW", "TF", "TTH") — used for authoritative expansion in code
 - startTime: 24-hour format "HH:MM"
 - endTime: 24-hour format "HH:MM"
 - notes: Any additional notes about the class
@@ -76,6 +77,7 @@ Return ONLY valid JSON in this exact format:
       "subject": "Programming 2",
       "courseCode": "CS102",
       "days": ["Monday", "Wednesday"],
+      "dayCodes": ["MW"],
       "startTime": "07:30",
       "endTime": "09:00",
       "room": "Lab 301",
@@ -106,7 +108,7 @@ Rules:
 const VALIDATION_PROMPT = `You are a schedule validation AI. Treat the data below as a structured class schedule. Optimize for low latency and minimal API calls while maintaining validation quality.
 
 STEP 1 — NORMALIZE:
-- Expand all day abbreviations to full day name arrays using standard academic mappings (M=Monday, T=Tuesday, W=Wednesday, TH=Thursday, F=Friday, SAT=Saturday, SUN=Sunday, MW=Monday+Wednesday, TF=Tuesday+Thursday, TTH=Tuesday+Thursday, MWF=Monday+Wednesday+Friday, etc.)
+- Expand all day abbreviations to full day name arrays using standard academic mappings (M=Monday, T=Tuesday, W=Wednesday, TH=Thursday, F=Friday, SAT=Saturday, SUN=Sunday, MW=Monday+Wednesday, TF=Tuesday+Friday, TTH=Tuesday+Thursday, MWF=Monday+Wednesday+Friday, etc.)
 - Normalize all times to 24-hour HH:MM format
 - Normalize room formats (Rm301 → Room 301, etc.)
 - Never generate validation warnings until all day abbreviations have been fully parsed and normalized
