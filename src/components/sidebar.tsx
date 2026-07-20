@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { navGroups, type NavItem } from "@/config/navigation";
@@ -163,6 +163,18 @@ export function Sidebar({ onClose }: { onClose?: () => void }) {
   const { user, signOut } = useAuth();
   const router = useRouter();
 
+  const [isDesktop, setIsDesktop] = useState(() => {
+    if (typeof window === "undefined") return true;
+    return window.matchMedia("(min-width: 768px)").matches;
+  });
+
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 768px)");
+    const handler = (e: MediaQueryListEvent) => setIsDesktop(e.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
+
   const u = user as
     | {
         firstName?: string;
@@ -190,6 +202,12 @@ export function Sidebar({ onClose }: { onClose?: () => void }) {
   const pathname = usePathname();
   const isAdminPage = pathname.startsWith("/admin");
 
+  // On mobile the primary destinations live in the Bottom Navigation,
+  // so the drawer only shows secondary tools/account items.
+  const visibleGroups = isDesktop
+    ? navGroups
+    : navGroups.filter((g) => g.title !== "Main");
+
   return (
     <aside className="flex h-full w-full flex-col overflow-hidden rounded-3xl bg-sidebar/95 shadow-[0_8px_40px_rgba(0,0,0,0.12)]">
       {/* Brand */}
@@ -211,7 +229,7 @@ export function Sidebar({ onClose }: { onClose?: () => void }) {
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto px-3 py-4">
-        {navGroups.map((group) => (
+        {visibleGroups.map((group) => (
           <div key={group.title} className="mb-4">
             <p className="mb-1.5 px-3 text-[11px] font-semibold uppercase tracking-wider text-sidebar-foreground/30">
               {group.title}

@@ -13,13 +13,26 @@ export interface NavGroup {
   items: NavItem[];
 }
 
+/** Primary destinations — shown in the Bottom Navigation (mobile). */
+export const primaryNav: NavItem[] = [
+  { label: "Dashboard", href: "/dashboard", icon: "layout-dashboard", primary: true },
+  { label: "Schedule", href: "/schedule", icon: "calendar", primary: true },
+  { label: "To-Do", href: "/todo", icon: "check-square", primary: true },
+  { label: "Reminders", href: "/reminders", icon: "bell-ring", primary: true },
+  { label: "Pomodoro", href: "/pomodoro", icon: "timer", primary: true },
+];
+
 /**
- * Sidebar (Navigation Drawer) groups — secondary tools, utilities,
- * personalization, and account management. Primary destinations
- * (Dashboard, Schedule, To-Do, Reminders, Pomodoro) live in the
- * Bottom Navigation and are excluded from the drawer.
+ * Sidebar (Navigation Drawer) groups.
+ * On desktop these are shown in full (primary + secondary).
+ * On mobile the primary items are omitted (they live in the Bottom Nav)
+ * and account actions stay in the user menu.
  */
 export const navGroups: NavGroup[] = [
+  {
+    title: "Main",
+    items: primaryNav,
+  },
   {
     title: "Tools",
     items: [
@@ -28,15 +41,19 @@ export const navGroups: NavGroup[] = [
       { label: "Music", href: "/music", icon: "music" },
     ],
   },
-];
-
-/** Primary destinations — shown in the Bottom Navigation only. */
-export const primaryNav: NavItem[] = [
-  { label: "Dashboard", href: "/dashboard", icon: "layout-dashboard", primary: true },
-  { label: "Schedule", href: "/schedule", icon: "calendar", primary: true },
-  { label: "To-Do", href: "/todo", icon: "check-square", primary: true },
-  { label: "Reminders", href: "/reminders", icon: "bell-ring", primary: true },
-  { label: "Pomodoro", href: "/pomodoro", icon: "timer", primary: true },
+  {
+    title: "Preferences",
+    items: [
+      { label: "Profile", href: "/settings", icon: "user" },
+      { label: "Settings", href: "/settings", icon: "settings" },
+    ],
+  },
+  {
+    title: "Support",
+    items: [
+      { label: "Help & Feedback", href: "/feedback", icon: "life-buoy" },
+    ],
+  },
 ];
 
 export const mainNav: NavItem[] = [...primaryNav, ...navGroups.flatMap((g) => g.items)];
