@@ -62,6 +62,9 @@ android/.idea/
 android/capacitor.settings.gradle
 android/capacitor.build.gradle
 android/app/capacitor.build.gradle
+# signing keys (never commit — provided via CI secrets)
+*.keystore
+*.jks
 
 # project specific
 CLAUDE.md
