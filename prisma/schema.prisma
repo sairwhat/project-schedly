@@ -120,6 +120,8 @@ model Class {
   instructor String?
   room       String?
   section    String?
+  block      String?
+  notes      String?
   color      String      @default("#3b82f6")
   startTime  DateTime    @map("start_time")
   endTime    DateTime    @map("end_time")

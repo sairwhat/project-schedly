@@ -237,7 +237,14 @@ export function ScheduleReview({
                           placeholder="e.g., A"
                         />
                       </div>
-                      <div />
+                      <div className="space-y-1">
+                        <Label className="text-xs">Block</Label>
+                        <Input
+                          value={cls.block ?? ""}
+                          onChange={(e) => onUpdate(i, { ...cls, block: e.target.value || null })}
+                          placeholder="e.g., BSCS-1A"
+                        />
+                      </div>
                     </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1">

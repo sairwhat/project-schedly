@@ -23,6 +23,8 @@ export interface CreateClassInput {
   instructor?: string | null;
   room?: string | null;
   section?: string | null;
+  block?: string | null;
+  notes?: string | null;
   days: DayOfWeek[];
   startTime: string;
   endTime: string;
@@ -69,6 +71,8 @@ export const scheduleService = {
         instructor: c.instructor ?? undefined,
         room: c.room ?? undefined,
         section: c.section ?? undefined,
+        block: c.block ?? undefined,
+        notes: c.notes ?? undefined,
         color: DEFAULT_COLORS[i % DEFAULT_COLORS.length]!,
         startTime: parseTime(c.startTime, now),
         endTime: parseTime(c.endTime, now),

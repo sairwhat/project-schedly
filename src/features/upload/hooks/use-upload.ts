@@ -9,6 +9,8 @@ export type ExtractedClass = {
   instructor: string | null;
   room: string | null;
   section: string | null;
+  block: string | null;
+  notes: string | null;
   days: ("monday" | "tuesday" | "wednesday" | "thursday" | "friday" | "saturday" | "sunday")[];
   startTime: string;
   endTime: string;
@@ -146,6 +148,8 @@ export function useUpload() {
         instructor: null,
         room: null,
         section: null,
+        block: null,
+        notes: null,
         days: [],
         startTime: "09:00",
         endTime: "10:00",

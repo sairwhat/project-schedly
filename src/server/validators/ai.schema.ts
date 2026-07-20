@@ -49,6 +49,8 @@ export const extractedClassSchema = z.object({
   instructor: z.string().nullable().default(null),
   room: z.string().nullable().default(null),
   section: z.string().nullable().default(null),
+  block: z.string().nullable().default(null),
+  notes: z.string().nullable().default(null),
   days: z
     .array(z.enum(daysOfWeek))
     .min(1, "At least one day is required"),
@@ -91,6 +93,8 @@ export const saveScheduleSchema = z.object({
       instructor: z.string().nullable().default(null),
       room: z.string().nullable().default(null),
       section: z.string().nullable().default(null),
+      block: z.string().nullable().default(null),
+      notes: z.string().nullable().default(null),
       days: z.array(z.enum(daysOfWeek)).min(1),
       startTime: z.string().regex(/^\d{2}:\d{2}$/),
       endTime: z.string().regex(/^\d{2}:\d{2}$/),

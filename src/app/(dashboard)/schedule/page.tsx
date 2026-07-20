@@ -24,6 +24,8 @@ type ClassData = {
   instructor: string | null;
   room: string | null;
   section: string | null;
+  block: string | null;
+  notes: string | null;
   color: string;
   startTime: Date;
   endTime: Date;

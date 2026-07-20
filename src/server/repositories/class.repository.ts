@@ -8,6 +8,8 @@ export interface CreateClassData {
   instructor?: string | null;
   room?: string | null;
   section?: string | null;
+  block?: string | null;
+  notes?: string | null;
   color: string;
   startTime: Date;
   endTime: Date;
@@ -20,6 +22,8 @@ export interface UpdateClassData {
   instructor?: string | null;
   room?: string | null;
   section?: string | null;
+  block?: string | null;
+  notes?: string | null;
   color?: string;
   startTime?: Date;
   endTime?: Date;
