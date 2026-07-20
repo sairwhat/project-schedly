@@ -23,45 +23,32 @@ const VALIDATION_MODELS = [
 
 const RETRY_DELAYS = [1000, 3000];
 
-const SCHEDULE_EXTRACTION_PROMPT = `Treat the uploaded image as a structured class schedule, not plain OCR text. Prioritize fast and efficient processing while maintaining high extraction accuracy. Process the schedule in a single extraction pass whenever possible. Use fallback models only if extraction fails or confidence falls below the defined threshold.
+const SCHEDULE_EXTRACTION_PROMPT = `Treat the uploaded image as a structured class schedule, not plain OCR text. First understand the table layout (rows, columns, merged cells, headers, and relationships) before extracting data.
 
-STEP 1 — ANALYZE TABLE STRUCTURE:
-First analyze the complete table layout before extracting any data. Identify headers, rows, columns, merged cells, day columns, time columns, and their relationships. Understand how subjects, rooms, instructors, and times map to each cell.
+A unique class is identified by (subject + room + startTime + endTime). If the same class appears on multiple meeting days with the same room and time, merge those days into a single record using a days array instead of creating duplicate classes. Only create separate records when the time or room is different. This rule must work for any day format (e.g., M, T, W, TH, F, SAT, SUN, MW, TF, MWF, TTH, or any school-specific notation).
 
-STEP 2 — EXTRACT CLASSES:
-Identify a unique class using (subject + room + startTime + endTime). Merge matching meeting days into a single record using a days array. Only create separate records when the subject, room, or time differs.
-
-STEP 3 — NORMALIZE DAY ABBREVIATIONS:
-Correctly interpret standard academic day abbreviations without guessing. Never guess or expand day abbreviations incorrectly. Use these standard mappings:
+Expand any day abbreviations into full day names in the days array:
 - M, MON → "Monday"
-- T, TUE → "Tuesday"
+- T, TUE → "Tuesday"  
 - W, WED → "Wednesday"
 - TH, THU → "Thursday"
 - F, FRI → "Friday"
-- SAT, SA → "Saturday"
-- SUN, SU → "Sunday"
+- SAT → "Saturday"
+- SUN → "Sunday"
 - MW → ["Monday", "Wednesday"]
 - TF → ["Tuesday", "Thursday"]
-- TTH, TH → ["Tuesday", "Thursday"] or ["Thursday"] depending on context
+- TTH → ["Tuesday", "Thursday"]
 - MWF → ["Monday", "Wednesday", "Friday"]
 - MTW → ["Monday", "Tuesday", "Wednesday"]
 
-STEP 4 — SELF-VALIDATION:
-Before returning, perform a lightweight validation pass:
-- Normalize all day names to full names
-- Normalize all times to 24-hour HH:MM format
-- Remove duplicate classes
-- Preserve original subject names exactly as written
-- If any value cannot be determined confidently, return null instead of guessing
-
-For each class, extract:
-- subject: The full name of the subject/course (preserve original spelling exactly)
+For each real class entry, extract:
+- subject: The full name of the subject/course
 - courseCode: The course code (e.g., "MATH 201")
 - instructor: The instructor's name
 - room: The room number or location
 - section: The section number or identifier
 - block: The block/group identifier (e.g., "BSCS-1A")
-- days: Array of meeting days (expand abbreviations to full day names)
+- days: Array of meeting days (expand all abbreviations to full day names)
 - startTime: 24-hour format "HH:MM"
 - endTime: 24-hour format "HH:MM"
 - notes: Any additional notes about the class
@@ -96,38 +83,50 @@ Rules:
 - Use full day names (Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday)
 - Use 24-hour time format (HH:MM)
 - Use a days ARRAY (never a single day string)
-- Preserve original subject names exactly as written
 - If a field is not visible, set it to null
 - If the image is not a schedule, return {"semester": null, "classes": [], "metadata": {"totalClasses": 0, "confidence": 0, "notes": "not_a_schedule"}}
 - NEVER create duplicate classes
-- Ignore duplicate OCR detections, repeated text, headers, and decorative elements
-- If any value cannot be determined confidently, return null instead of guessing`;
+- Remove duplicate detections, ignore repeated OCR text, never hallucinate missing information
+- Perform a final self-validation to ensure there are no duplicate classes before returning the result`;
 
-const VALIDATION_PROMPT = `You are a schedule validation AI. Treat the data below as a structured class schedule. Optimize for low latency and minimal API calls while maintaining validation quality.
+const VALIDATION_PROMPT = `Treat the uploaded image as a structured class schedule, not plain OCR text. First understand the table layout (rows, columns, merged cells, headers, and relationships) before extracting data.
 
-STEP 1 — NORMALIZE:
-- Expand all day abbreviations to full day name arrays using standard academic mappings (M=Monday, T=Tuesday, W=Wednesday, TH=Thursday, F=Friday, SAT=Saturday, SUN=Sunday, MW=Monday+Wednesday, TF=Tuesday+Thursday, TTH=Tuesday+Thursday, MWF=Monday+Wednesday+Friday, etc.)
-- Normalize all times to 24-hour HH:MM format
-- Normalize room formats (Rm301 → Room 301, etc.)
-- Never generate validation warnings until all day abbreviations have been fully parsed and normalized
+A unique class is identified by (subject + room + startTime + endTime). If the same class appears on multiple meeting days with the same room and time, merge those days into a single record using a days array instead of creating duplicate classes. Only create separate records when the time or room is different. This rule must work for any day format (e.g., M, T, W, TH, F, SAT, SUN, MW, TF, MWF, TTH, or any school-specific notation).
 
-STEP 2 — DEDUPLICATE:
-A class is uniquely identified by (subject + room + startTime + endTime). The days field is NOT part of the unique key. If two entries have the same subject, room, startTime, and endTime but different day codes, MERGE their days into one array.
+Expand any day abbreviations into full day name arrays:
+- M, MON → "Monday"
+- T, TUE → "Tuesday"
+- W, WED → "Wednesday"
+- TH, THU → "Thursday"
+- F, FRI → "Friday"
+- SAT → "Saturday"
+- SUN → "Sunday"
+- MW → ["Monday", "Wednesday"]
+- TF → ["Tuesday", "Thursday"]
+- TTH → ["Tuesday", "Thursday"]
+- MWF → ["Monday", "Wednesday", "Friday"]
 
-STEP 3 — VALIDATE:
-- No impossible times (endTime must be after startTime)
-- No overlapping classes on the same day (only after final schedule is validated, compare normalized day + start time + end time + room + subject)
-- Missing fields that should be flagged
-- Malformed course codes
-- Impossible values
-- Preserve original subject names exactly as written
+For each class, check:
+1. Valid days (Monday-Sunday, stored as an array, normalized to proper case)
+2. Valid time format (HH:MM, 24-hour)
+3. No duplicate classes — a class is unique only if (subject + room + startTime + endTime) is unique. The days field is NOT part of the unique key. If two entries have the same subject, room, startTime, and endTime but different day codes, MERGE their days into one array.
+4. No impossible times (endTime must be after startTime)
+5. No overlapping classes on the same day
+6. Missing fields that should be flagged
+7. Malformed course codes
+8. Impossible values
 
-STEP 4 — CONFLICT DETECTION:
-- Only compare normalized day, start time, end time, room, and subject AFTER the final schedule has been fully validated
-- Do not report overlaps based on partially parsed or guessed day values
-- Remove false positives
+Automatically normalize:
+- Mon → Monday, TUE → Tuesday, etc.
+- 7-9 → 07:00-09:00
+- Rm301 → Room 301
+- Any 12h time with AM/PM → 24h format
+- Expand combined day abbreviations into full day name arrays
 
-STEP 5 — CONFIDENCE SCORING:
+DEDUPLICATION — This is critical:
+- Before returning, perform a self-validation pass to merge duplicate classes based on (subject, room, startTime, endTime). Combine their days arrays.
+- Remove duplicate detections, ignore repeated OCR text, never hallucinate missing information
+
 For each class, assign a confidence score (0-1) for each field:
 - subject confidence
 - courseCode confidence
@@ -163,13 +162,15 @@ Return ONLY valid JSON in this exact format:
       "notes": null
     }
   ],
-  "issues": [],
+  "issues": [
+    {"type": "normalized", "message": "Expanded MW → Monday,Wednesday for class 1", "classIndex": 0}
+  ],
   "overallConfidence": 0.97
 }
 
 If no issues, return "issues": [].
 
-If any value cannot be determined confidently, return null instead of guessing. Never generate validation warnings until all day abbreviations have been fully parsed and normalized.`;
+Perform a final self-validation to ensure there are no duplicate classes before returning the result.`;
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
