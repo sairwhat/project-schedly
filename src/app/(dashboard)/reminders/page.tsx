@@ -175,7 +175,7 @@ export default function RemindersPage() {
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium text-foreground">
-                    {c.code || c.subject}
+                    {c.shortName?.trim() || c.code?.trim() || c.subject}
                   </p>
                   <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
                     <span className="flex items-center gap-1">

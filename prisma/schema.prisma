@@ -116,6 +116,7 @@ model Class {
   id         String      @id @default(uuid())
   scheduleId String      @map("schedule_id")
   subject    String
+  shortName  String?     @map("short_name")
   code       String?
   instructor String?
   room       String?

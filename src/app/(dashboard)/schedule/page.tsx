@@ -12,6 +12,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import {
   Camera, Image, AlertCircle, CheckCircle, ArrowLeft,
   Plus, Calendar, ChevronRight, Trash2,
 } from "lucide-react";
@@ -20,6 +27,7 @@ import { validateExtractedClasses, type ValidationIssue } from "@/server/service
 type ClassData = {
   id: string;
   subject: string;
+  shortName: string | null;
   code: string | null;
   instructor: string | null;
   room: string | null;
@@ -61,6 +69,7 @@ export default function SchedulePage() {
   const [schedules, setSchedules] = useState<ScheduleData[]>([]);
   const [loadingSchedules, setLoadingSchedules] = useState(true);
   const [selectedSchedule, setSelectedSchedule] = useState<ScheduleData | null>(null);
+  const [detailClassId, setDetailClassId] = useState<string | null>(null);
 
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -338,6 +347,38 @@ export default function SchedulePage() {
                 classes={selectedSchedule.classes}
                 filename={`${selectedSchedule.title}.png`}
               />
+
+              <div className="mt-4">
+                <h3 className="mb-2 text-sm font-medium text-muted-foreground">Classes</h3>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                  {selectedSchedule.classes.map((c) => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => setDetailClassId(c.id)}
+                      className="flex flex-col items-start rounded-lg border border-border/60 bg-card p-2.5 text-left transition-colors hover:border-primary/50"
+                    >
+                      <span
+                        className="text-xs font-semibold leading-tight break-words"
+                        style={{ color: c.color }}
+                      >
+                        {c.shortName?.trim() || c.code?.trim() || c.subject}
+                      </span>
+                      <span className="mt-0.5 text-[10px] text-muted-foreground">
+                        {c.days.map((d) => d.slice(0, 2)).join("")}{" "}
+                        {new Date(c.startTime).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}–
+                        {new Date(c.endTime).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <ClassDetailDialog
+                cls={selectedSchedule.classes.find((c) => c.id === detailClassId) || null}
+                open={detailClassId !== null}
+                onOpenChange={(o) => { if (!o) setDetailClassId(null); }}
+              />
             </div>
           )}
 
@@ -416,7 +457,7 @@ export default function SchedulePage() {
                           </Badge>
                           {schedule.classes.slice(0, 3).map((cls) => (
                             <Badge key={cls.id} variant="outline" className="text-[10px]" style={{ borderColor: cls.color + "60", color: cls.color }}>
-                              {cls.code || cls.subject}
+                              {cls.shortName?.trim() || cls.code?.trim() || cls.subject}
                             </Badge>
                           ))}
                           {schedule.classes.length > 3 && (
@@ -456,5 +497,58 @@ export default function SchedulePage() {
         </div>
       </main>
     </div>
+  );
+}
+
+const DAY_FULL: Record<string, string> = {
+  monday: "Monday", tuesday: "Tuesday", wednesday: "Wednesday",
+  thursday: "Thursday", friday: "Friday", saturday: "Saturday", sunday: "Sunday",
+};
+
+function fmtTime(t: Date): string {
+  return new Date(t).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+}
+
+function ClassDetailDialog({
+  cls,
+  open,
+  onOpenChange,
+}: {
+  cls: ClassData | null;
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+}) {
+  if (!cls) return null;
+  const rows: Array<[string, string | null]> = [
+    ["Subject", cls.subject],
+    ["Code", cls.code],
+    ["Instructor", cls.instructor],
+    ["Room", cls.room],
+    ["Section", cls.section],
+    ["Block", cls.block],
+    ["Days", cls.days.map((d) => DAY_FULL[d]).join(", ")],
+    ["Time", `${fmtTime(cls.startTime)} – ${fmtTime(cls.endTime)}`],
+  ];
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle className="break-words" style={{ color: cls.color }}>
+            {cls.shortName?.trim() || cls.code?.trim() || cls.subject}
+          </DialogTitle>
+          <DialogDescription className="break-words">{cls.subject}</DialogDescription>
+        </DialogHeader>
+        <div className="divide-y divide-border/60">
+          {rows
+            .filter(([, v]) => v && v.trim() !== "")
+            .map(([label, value]) => (
+              <div key={label} className="flex items-start justify-between gap-3 py-2">
+                <span className="shrink-0 text-xs font-medium text-muted-foreground">{label}</span>
+                <span className="text-right text-sm break-words">{value}</span>
+              </div>
+            ))}
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }

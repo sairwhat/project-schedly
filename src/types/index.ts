@@ -16,6 +16,7 @@ export interface ScheduleWithClasses {
 export interface ClassData {
   id: string;
   subject: string;
+  shortName: string | null;
   code: string | null;
   instructor: string | null;
   room: string | null;

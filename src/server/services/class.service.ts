@@ -5,6 +5,7 @@ import { ok, fail, notFound } from "@/server/lib/errors";
 
 export interface UpdateClassInput {
   subject?: string;
+  shortName?: string | null;
   code?: string | null;
   instructor?: string | null;
   room?: string | null;
@@ -28,6 +29,7 @@ export const classService = {
     const classData: Record<string, unknown> = {};
 
     if (input.subject !== undefined) classData.subject = input.subject;
+    if (input.shortName !== undefined) classData.shortName = input.shortName ?? null;
     if (input.code !== undefined) classData.code = input.code ?? null;
     if (input.instructor !== undefined) classData.instructor = input.instructor ?? null;
     if (input.room !== undefined) classData.room = input.room ?? null;

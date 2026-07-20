@@ -2,9 +2,11 @@
 
 import { useState } from "react";
 import { retry } from "@/lib/retry";
+import { generateShortName } from "@/lib/abbreviations";
 
 export type ExtractedClass = {
   subject: string;
+  shortName: string | null;
   code: string | null;
   instructor: string | null;
   room: string | null;
@@ -127,7 +129,12 @@ export function useUpload() {
                 fileUrl?: string;
                 uploadId?: string;
               };
-              setExtractedClasses(r.classes || []);
+              setExtractedClasses(
+                (r.classes || []).map((c) => ({
+                  ...c,
+                  shortName: c.shortName ?? (generateShortName(c.subject) || null),
+                }))
+              );
               setMetadata(r.metadata || { confidence: 0 });
               setUpload((prev) => prev ? {
                 ...prev,
@@ -212,6 +219,7 @@ export function useUpload() {
       ...prev,
       {
         subject: "",
+        shortName: null,
         code: null,
         instructor: null,
         room: null,

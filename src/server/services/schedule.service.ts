@@ -2,6 +2,7 @@ import { scheduleRepository } from "@/server/repositories/schedule.repository";
 import { classRepository, type CreateClassData } from "@/server/repositories/class.repository";
 import { uploadRepository } from "@/server/repositories/upload.repository";
 import { db } from "@/server/db/client";
+import { generateShortName } from "@/lib/abbreviations";
 import type { DayOfWeek } from "@/generated/prisma/client";
 
 const DEFAULT_COLORS = [
@@ -19,6 +20,7 @@ function parseTime(time: string, reference: Date): Date {
 
 export interface CreateClassInput {
   subject: string;
+  shortName?: string | null;
   code?: string | null;
   instructor?: string | null;
   room?: string | null;
@@ -67,6 +69,7 @@ export const scheduleService = {
       const classData: CreateClassData[] = input.classes.map((c, i) => ({
         scheduleId: s.id,
         subject: c.subject,
+        shortName: (c.shortName ?? generateShortName(c.subject)) || null,
         code: c.code ?? undefined,
         instructor: c.instructor ?? undefined,
         room: c.room ?? undefined,

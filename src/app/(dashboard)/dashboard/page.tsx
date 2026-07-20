@@ -25,6 +25,7 @@ import {
 type ClassData = {
   id: string;
   subject: string;
+  shortName: string | null;
   code: string | null;
   instructor: string | null;
   room: string | null;
@@ -213,7 +214,7 @@ export default function DashboardPage() {
             ) : nextClass ? (
               <div>
                 <p className="text-lg font-semibold text-foreground">
-                  {nextClass.class.code || nextClass.class.subject}
+                  {nextClass.class.shortName?.trim() || nextClass.class.code?.trim() || nextClass.class.subject}
                 </p>
                 <div className="mt-1 flex flex-col gap-0.5 text-xs text-muted-foreground">
                   {nextClass.class.room && (

@@ -4,6 +4,7 @@ import type { DayOfWeek } from "@/generated/prisma/client";
 export interface CreateClassData {
   scheduleId: string;
   subject: string;
+  shortName?: string | null;
   code?: string | null;
   instructor?: string | null;
   room?: string | null;
@@ -18,6 +19,7 @@ export interface CreateClassData {
 
 export interface UpdateClassData {
   subject?: string;
+  shortName?: string | null;
   code?: string | null;
   instructor?: string | null;
   room?: string | null;

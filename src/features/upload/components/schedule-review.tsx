@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { ExtractedClass } from "@/features/upload/hooks/use-upload";
 import type { ValidationIssue } from "@/server/services/validation.service";
 import { saveSchedule, type SaveScheduleResult } from "@/app/(dashboard)/schedule/actions";
+import { generateShortName } from "@/lib/abbreviations";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -208,6 +209,28 @@ export function ScheduleReview({
                           onChange={(e) => onUpdate(i, { ...cls, code: e.target.value || null })}
                           placeholder="e.g., MATH 201"
                         />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <Label className="text-xs">Short Name (timetable label)</Label>
+                        <div className="flex gap-1.5">
+                          <Input
+                            value={cls.shortName ?? ""}
+                            onChange={(e) => onUpdate(i, { ...cls, shortName: e.target.value || null })}
+                            placeholder={generateShortName(cls.subject) || "e.g., Calc I"}
+                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon-sm"
+                            className="shrink-0"
+                            title="Auto-generate"
+                            onClick={() => onUpdate(i, { ...cls, shortName: generateShortName(cls.subject) || null })}
+                          >
+                            <Plus className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
                       </div>
                     </div>
                     <div className="grid grid-cols-2 gap-3">

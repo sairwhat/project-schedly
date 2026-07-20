@@ -3,6 +3,7 @@
 type ClassData = {
   id: string;
   subject: string;
+  shortName: string | null;
   code: string | null;
   instructor: string | null;
   room: string | null;
@@ -21,6 +22,10 @@ type Props = {
   scale?: number;
   capture?: boolean;
 };
+
+function classLabel(c: ClassData): string {
+  return c.shortName?.trim() || c.code?.trim() || c.subject;
+}
 
 const ALL_DAYS = [
   "monday",
@@ -140,9 +145,22 @@ export function SchedulePreview({ classes, filename = "schedule.png", scale, cap
                           key={c.id}
                           className={isCapture ? "rounded-lg p-4 text-center" : "rounded-md p-1 text-center"}
                           style={{ backgroundColor: c.color + "1f", color: c.color }}
+                          title={
+                            !isCapture
+                              ? [
+                                  c.subject,
+                                  c.code && `Code: ${c.code}`,
+                                  c.instructor && `Instructor: ${c.instructor}`,
+                                  c.room && `Room: ${c.room}`,
+                                  `${minutesTo12h(timeToMinutes(c.startTime))}–${minutesTo12h(timeToMinutes(c.endTime))}`,
+                                ]
+                                  .filter(Boolean)
+                                  .join("\n")
+                              : undefined
+                          }
                         >
                           <div className={isCapture ? "text-2xl font-semibold leading-tight break-words" : "text-[10px] font-semibold leading-tight break-words sm:text-[10px]"}>
-                            {c.code || c.subject}
+                            {classLabel(c)}
                           </div>
                           <div className={isCapture ? "text-lg opacity-80 leading-tight" : "mt-0.5 text-[9px] opacity-80 leading-tight"}>
                             {minutesTo12h(timeToMinutes(c.startTime))}–

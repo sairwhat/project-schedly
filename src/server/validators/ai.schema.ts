@@ -125,6 +125,7 @@ export const saveScheduleSchema = z.object({
   classes: z.array(
     z.object({
       subject: z.string().min(1),
+      shortName: z.string().nullable().default(null),
       code: z.string().nullable().default(null),
       instructor: z.string().nullable().default(null),
       room: z.string().nullable().default(null),
