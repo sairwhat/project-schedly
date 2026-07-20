@@ -2,6 +2,8 @@ import { type NextRequest, NextResponse } from "next/server";
 import { put } from "@vercel/blob";
 import { auth } from "@/server/lib/auth";
 import { db } from "@/server/db/client";
+import { uploadService } from "@/server/services/upload.service";
+import { uploadRepository } from "@/server/repositories/upload.repository";
 import { aiService } from "@/server/services/ai.service";
 import { detectImageMime, checkRateLimit, validateCsrf } from "@/server/lib/security";
 import { auditLog } from "@/server/lib/audit";
@@ -10,6 +12,8 @@ import path from "path";
 
 const BLOB_TOKEN = process.env.BLOB_READ_WRITE_TOKEN;
 const UPLOAD_DIR = path.join(process.cwd(), "public", "uploads");
+
+export const maxDuration = 60;
 
 type StoredFile = { url: string; key: string };
 
@@ -29,6 +33,42 @@ async function storeFile(buffer: Uint8Array, mime: string, key: string): Promise
   await fs.mkdir(path.dirname(target), { recursive: true });
   await fs.writeFile(target, Buffer.from(buffer));
   return { url: `/uploads/${key}`, key };
+}
+
+async function runBackgroundProcessing(uploadId: string, imageUrl: string) {
+  if (!process.env.OPENROUTER_API_KEY) {
+    await uploadService.updateStatus(uploadId, "completed");
+    return;
+  }
+
+  try {
+    const result = await aiService.processImage(imageUrl);
+
+    if (!result.success) {
+      console.error("[UPLOAD_API] AI extraction error:", result.error.message);
+      await uploadService.updateStatus(uploadId, "completed");
+      return;
+    }
+
+    const validClasses = result.data.classes.filter(
+      (c) => c.subject && c.days.length > 0 && c.startTime && c.endTime
+    );
+
+    const metadata = {
+      totalClasses: validClasses.length,
+      confidence: result.data.metadata.confidence,
+      notes: result.data.metadata.notes,
+    };
+
+    await uploadRepository.updateAiResult(
+      uploadId,
+      { classes: validClasses, metadata } as never,
+      "completed"
+    );
+  } catch (err) {
+    console.error("[UPLOAD_API] Background AI processing failed:", err);
+    await uploadService.updateStatus(uploadId, "completed");
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -98,56 +138,19 @@ export async function POST(request: NextRequest) {
 
     auditLog("upload.create", { userId: session.user.id, uploadId: upload.id, fileName: file.name });
 
-    let classes: Array<{ subject: string; code: string | null; instructor: string | null; room: string | null; section: string | null; days: string[]; startTime: string; endTime: string }> = [];
-    let metadata = { totalClasses: 0, confidence: 0, notes: null as string | null };
+    // Respond immediately so the request never times out on the client.
+    // AI extraction runs in the background and the client polls for status.
+    const origin = new URL(request.url).origin;
+    const absoluteUrl = stored.url.startsWith("http")
+      ? stored.url
+      : `${origin}${stored.url}`;
 
-    if (process.env.OPENROUTER_API_KEY) {
-      try {
-        const origin = new URL(request.url).origin;
-        const absoluteUrl = stored.url.startsWith("http")
-          ? stored.url
-          : `${origin}${stored.url}`;
-
-        const result = await aiService.processImage(absoluteUrl);
-
-        if (result.success) {
-          const validClasses = result.data.classes.filter(
-            (c) => c.subject && c.days.length > 0 && c.startTime && c.endTime
-          );
-
-          classes = validClasses;
-          metadata = {
-            totalClasses: validClasses.length,
-            confidence: result.data.metadata.confidence,
-            notes: result.data.metadata.notes,
-          };
-        } else {
-          console.error("[UPLOAD_API] AI extraction error:", result.error.message);
-          metadata.notes = `AI extraction issue: ${result.error.message}`;
-        }
-      } catch (aiErr) {
-        console.error("[UPLOAD_API] AI extraction error:", aiErr);
-      }
-    } else {
-      metadata.notes = "AI extraction not configured — add classes manually.";
-    }
-
-    const result = { classes, metadata };
-
-    await db.upload.update({
-      where: { id: upload.id },
-      data: {
-        status: "completed",
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        aiResult: result as any,
-      },
-    });
+    void runBackgroundProcessing(upload.id, absoluteUrl);
 
     return NextResponse.json({
       uploadId: upload.id,
       fileUrl: stored.url,
-      classes,
-      metadata,
+      status: "processing",
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
