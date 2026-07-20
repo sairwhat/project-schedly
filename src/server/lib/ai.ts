@@ -23,9 +23,11 @@ const VALIDATION_MODELS = [
 
 const RETRY_DELAYS = [1000, 3000];
 
-const SCHEDULE_EXTRACTION_PROMPT = `You are a schedule extraction AI. Analyze the provided schedule image and extract all classes into structured JSON.
+const SCHEDULE_EXTRACTION_PROMPT = `You are a schedule extraction AI. Treat the uploaded image as a structured class schedule table — NOT as generic OCR text.
 
-For each class, extract:
+Extract only real class entries by identifying the relationship between Subject, Day, Time, and Room within the table structure (rows, columns, merged cells, time slots, day headers).
+
+For each real class entry, extract:
 - subject: The full name of the subject/course
 - courseCode: The course code (e.g., "MATH 201")
 - instructor: The instructor's name
@@ -39,7 +41,15 @@ For each class, extract:
 
 Convert any 12-hour time (with AM/PM) to 24-hour. Examples: "9:00 AM" -> "09:00", "1:00 PM" -> "13:00", "12:00 AM" -> "00:00", "12:00 PM" -> "12:00"
 
-IMPORTANT: Understand the schedule as a structured timetable. Detect table rows, columns, merged cells, time slots, and day headers. Understand relationships between rows and columns rather than reading text line-by-line.
+CRITICAL — Deduplication Rule:
+A class is unique ONLY if the combination of (subject + day + startTime + endTime + room) is unique.
+If the same subject appears multiple times with identical day, startTime, endTime, and room, keep only ONE entry.
+Before outputting, perform a self-validation pass: remove all duplicate classes based on (subject, day, startTime, endTime, room).
+
+MUST IGNORE:
+- Headers, legends, decorative elements, empty cells, page footers, logos
+- Repeated OCR text that does not represent a real class
+- Any text that is not part of a structured class entry
 
 Return ONLY valid JSON in this exact format:
 {
@@ -70,16 +80,17 @@ Rules:
 - Use 24-hour time format (HH:MM)
 - If a field is not visible, set it to null
 - If the image is not a schedule, return {"semester": null, "classes": [], "metadata": {"totalClasses": 0, "confidence": 0, "notes": "not_a_schedule"}}
-- Extract ALL visible classes, even if partially visible
-- Do not include any text before or after the JSON
-- Never invent missing information — leave unknown fields as null`;
+- NEVER create duplicate classes
+- Never invent missing information — leave unknown fields as null
+- If uncertain about any value, return null instead of guessing
+- Output only clean, validated JSON ready for database insertion`;
 
 const VALIDATION_PROMPT = `You are a schedule validation AI. Review the extracted class data below and validate every field.
 
 For each class, check:
 1. Valid day name (Monday-Sunday, normalized to proper case)
 2. Valid time format (HH:MM, 24-hour)
-3. No duplicate classes (same subject + same day + same time)
+3. No duplicate classes — a class is unique only if (subject + day + startTime + endTime + room) is unique. If a duplicate exists, keep only one entry.
 4. No impossible times (endTime must be after startTime)
 5. No overlapping classes on the same day
 6. Missing fields that should be flagged
@@ -91,6 +102,10 @@ Automatically normalize:
 - 7-9 → 07:00-09:00
 - Rm301 → Room 301
 - Any 12h time with AM/PM → 24h format
+
+DEDUPLICATION — This is critical:
+- Before returning, perform a self-validation pass to remove ALL duplicate classes based on (subject, day, startTime, endTime, room).
+- If the same subject appears with identical day, time, and room, keep only one entry.
 
 For each class, assign a confidence score (0-1) for each field:
 - subject confidence
