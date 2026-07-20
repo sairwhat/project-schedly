@@ -1,3 +1,5 @@
+import { preprocessImage } from "./image-processing";
+
 const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
 
 /* ===== Vision Models (Image Understanding) ===== */
@@ -131,7 +133,7 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function fetchImageAsBase64(imageUrl: string) {
+async function fetchAndPreprocessImage(imageUrl: string) {
   console.log("[AI] Fetching image from:", imageUrl);
 
   const response = await fetch(imageUrl);
@@ -141,11 +143,17 @@ async function fetchImageAsBase64(imageUrl: string) {
 
   const contentType = response.headers.get("content-type") || "image/jpeg";
   const arrayBuffer = await response.arrayBuffer();
-  const base64 = Buffer.from(arrayBuffer).toString("base64");
+  const rawBuffer = Buffer.from(arrayBuffer);
 
-  console.log("[AI] Image fetched:", arrayBuffer.byteLength, "bytes,", contentType);
+  console.log("[AI] Image fetched:", rawBuffer.length, "bytes,", contentType);
 
-  return { base64, contentType };
+  // ── Preprocess the image before AI analysis ──────────────────────
+  console.log("[AI] Preprocessing image (auto-crop, denoise, sharpen, enhance, auto-rotate)...");
+  const processedBuffer = await preprocessImage(rawBuffer);
+  console.log("[AI] Preprocessed image:", processedBuffer.length, "bytes");
+
+  const base64 = processedBuffer.toString("base64");
+  return { base64, contentType: "image/jpeg" };
 }
 
 async function callOpenRouter(model: string, messages: unknown[], options?: { structured?: boolean }) {
@@ -254,7 +262,7 @@ export async function extractScheduleFromImage(imageUrl: string) {
 
   console.log("[AI] Image extraction — models:", models.join(", "));
 
-  const { base64, contentType } = await fetchImageAsBase64(imageUrl);
+  const { base64, contentType } = await fetchAndPreprocessImage(imageUrl);
 
   return withRetry(
     (model) =>
