@@ -15,6 +15,7 @@ class MainActivity : BridgeActivity() {
     override fun onCreate(savedInstanceState: android.os.Bundle?) {
         registerPlugin(GallerySave::class.java)
         registerPlugin(InAppUpdate::class.java)
+        registerPlugin(WidgetData::class.java)
         super.onCreate(savedInstanceState)
         requestNotificationPermission()
     }

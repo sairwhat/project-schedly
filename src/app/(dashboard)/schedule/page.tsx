@@ -17,6 +17,7 @@ import {
   Plus, Calendar, ChevronRight, Trash2,
 } from "lucide-react";
 import { validateExtractedClasses, type ValidationIssue } from "@/server/services/validation.service";
+import { publishScheduleToWidget } from "@/features/widget/widget-data";
 
 type ClassData = {
   id: string;
@@ -138,7 +139,13 @@ export default function SchedulePage() {
 
   const handleSaved = async (_scheduleId: string) => {
     setValidationIssues([]);
-    await getUserSchedules();
+    const data = await getUserSchedules();
+    const schedules = data as ScheduleData[];
+    const active =
+      schedules.find((s) => s.isActive && s.classes.length > 0) ??
+      schedules.find((s) => s.classes.length > 0) ??
+      null;
+    publishScheduleToWidget(active);
     router.push("/dashboard");
   };
 

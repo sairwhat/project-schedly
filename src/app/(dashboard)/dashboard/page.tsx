@@ -21,6 +21,7 @@ import {
   MapPin,
   GraduationCap,
 } from "lucide-react";
+import { publishScheduleToWidget } from "@/features/widget/widget-data";
 
 type ClassData = {
   id: string;
@@ -122,6 +123,16 @@ export default function DashboardPage() {
       .then((data) => setSchedules(data as ScheduleData[]))
       .catch(() => setSchedules([]));
   }, []);
+
+  // Publish the active schedule to the home-screen widget whenever schedules change.
+  useEffect(() => {
+    if (!schedules) return;
+    const active =
+      schedules.find((s) => s.isActive && s.classes.length > 0) ??
+      schedules.find((s) => s.classes.length > 0) ??
+      null;
+    publishScheduleToWidget(active);
+  }, [schedules]);
 
   const allClasses = (schedules ?? []).flatMap((s) => s.classes);
   const nextClass = getNextClass(allClasses);
