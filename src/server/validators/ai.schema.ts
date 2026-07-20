@@ -14,9 +14,6 @@ export const aiClassSchema = z.object({
   courseCode_confidence: z.number().min(0).max(1).optional(),
   days: z.array(aiDayEnum).min(1),
   days_confidence: z.number().min(0).max(1).optional(),
-  // Raw day abbreviations exactly as read by the model (e.g. "TF", "MWF").
-  // Preferred over `days` for authoritative expansion in code.
-  dayCodes: z.array(z.string()).optional(),
   startTime: z.string().regex(/^\d{2}:\d{2}$/),
   startTime_confidence: z.number().min(0).max(1).optional(),
   endTime: z.string().regex(/^\d{2}:\d{2}$/),
@@ -127,20 +124,11 @@ export const saveScheduleSchema = z.object({
 export type SaveScheduleInput = z.infer<typeof saveScheduleSchema>;
 
 /* ===== Transform AI output → Internal format ===== */
-import { normalizeDays } from "@/server/lib/day-mapping";
-
 export function transformAiOutputToInternal(aiOutput: AiValidationResult): ExtractionResult {
   const issues = aiOutput.issues || [];
 
   const classes = aiOutput.classes.map((aiClass) => {
-    // Authoritative day expansion: prefer raw dayCodes, fall back to expanded days.
-    const normalized = normalizeDays(aiClass.dayCodes && aiClass.dayCodes.length > 0 ? aiClass.dayCodes : aiClass.days);
-    const days = normalized.days as typeof daysOfWeek[number][];
-
-    // Confidence must reflect parsing certainty of day abbreviations.
-    const dayConfidence = normalized.uncertain ? Math.min(normalized.confidence, 0.5) : (aiClass.days_confidence ?? 1);
-    const baseConfidence = aiClass.startTime_confidence ?? aiOutput.overallConfidence ?? 1;
-    const confidence = normalized.uncertain ? Math.min(baseConfidence, dayConfidence) : baseConfidence;
+    const lowered = aiClass.days.map((d) => d.toLowerCase()) as typeof daysOfWeek[number][];
 
     return {
       subject: aiClass.subject,
@@ -149,10 +137,10 @@ export function transformAiOutputToInternal(aiOutput: AiValidationResult): Extra
       room: aiClass.room,
       section: aiClass.section,
       block: aiClass.block,
-      days,
+      days: lowered,
       startTime: aiClass.startTime,
       endTime: aiClass.endTime,
-      confidence,
+      confidence: aiClass.startTime_confidence ?? aiOutput.overallConfidence ?? 1,
       notes: aiClass.notes,
     };
   });
