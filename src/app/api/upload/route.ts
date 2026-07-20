@@ -105,19 +105,30 @@ export async function POST(request: NextRequest) {
 
     const uploadId = crypto.randomUUID();
     const base64 = Buffer.from(buffer).toString("base64");
+    const dataUri = `data:${detectedMime};base64,${base64}`;
 
     const upload = await db.upload.create({
       data: {
         id: uploadId,
         userId: session.user.id,
         fileUrl: `/api/upload/${uploadId}/image`,
-        fileData: `data:${detectedMime};base64,${base64}`,
         fileName: file.name,
         fileSize: file.size,
         mimeType: detectedMime,
         status: "processing",
       },
     });
+
+    // Store the image bytes separately so a missing migration column
+    // can never block the upload from succeeding.
+    try {
+      await db.upload.update({
+        where: { id: uploadId },
+        data: { fileData: dataUri },
+      });
+    } catch (e) {
+      console.error("[UPLOAD_API] Could not persist fileData (migration may be pending):", e);
+    }
 
     auditLog("upload.create", { userId: session.user.id, uploadId: upload.id, fileName: file.name });
 
