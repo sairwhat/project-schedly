@@ -192,53 +192,53 @@ export function ScheduleReview({
               </CardHeader>
               {isExpanded && (
                 <CardContent className="px-4 pb-4 pt-0 space-y-3">
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <Label className="text-xs">Subject *</Label>
-                      <Input
-                        value={cls.subject}
-                        onChange={(e) => onUpdate(i, { ...cls, subject: e.target.value })}
-                        placeholder="e.g., Calculus I"
-                      />
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <Label className="text-xs">Subject *</Label>
+                        <Input
+                          value={cls.subject}
+                          onChange={(e) => onUpdate(i, { ...cls, subject: e.target.value })}
+                          placeholder="e.g., Calculus I"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Course Code</Label>
+                        <Input
+                          value={cls.code ?? ""}
+                          onChange={(e) => onUpdate(i, { ...cls, code: e.target.value || null })}
+                          placeholder="e.g., MATH 201"
+                        />
+                      </div>
                     </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs">Course Code</Label>
-                      <Input
-                        value={cls.code ?? ""}
-                        onChange={(e) => onUpdate(i, { ...cls, code: e.target.value || null })}
-                        placeholder="e.g., MATH 201"
-                      />
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <Label className="text-xs">Instructor</Label>
+                        <Input
+                          value={cls.instructor ?? ""}
+                          onChange={(e) => onUpdate(i, { ...cls, instructor: e.target.value || null })}
+                          placeholder="e.g., Dr. Smith"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Room</Label>
+                        <Input
+                          value={cls.room ?? ""}
+                          onChange={(e) => onUpdate(i, { ...cls, room: e.target.value || null })}
+                          placeholder="e.g., Room 301"
+                        />
+                      </div>
                     </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <Label className="text-xs">Instructor</Label>
-                      <Input
-                        value={cls.instructor ?? ""}
-                        onChange={(e) => onUpdate(i, { ...cls, instructor: e.target.value || null })}
-                        placeholder="e.g., Dr. Smith"
-                      />
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <Label className="text-xs">Section</Label>
+                        <Input
+                          value={cls.section ?? ""}
+                          onChange={(e) => onUpdate(i, { ...cls, section: e.target.value || null })}
+                          placeholder="e.g., A"
+                        />
+                      </div>
+                      <div />
                     </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs">Room</Label>
-                      <Input
-                        value={cls.room ?? ""}
-                        onChange={(e) => onUpdate(i, { ...cls, room: e.target.value || null })}
-                        placeholder="e.g., Room 301"
-                      />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <Label className="text-xs">Section</Label>
-                      <Input
-                        value={cls.section ?? ""}
-                        onChange={(e) => onUpdate(i, { ...cls, section: e.target.value || null })}
-                        placeholder="e.g., A"
-                      />
-                    </div>
-                    <div />
-                  </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1">
                       <Label className="text-xs">Start Time *</Label>

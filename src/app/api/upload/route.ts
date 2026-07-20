@@ -2,8 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { put } from "@vercel/blob";
 import { auth } from "@/server/lib/auth";
 import { db } from "@/server/db/client";
-import { extractScheduleFromImage } from "@/server/lib/ai";
-import { extractionResultSchema } from "@/server/validators/ai.schema";
+import { aiService } from "@/server/services/ai.service";
 import { detectImageMime, checkRateLimit, validateCsrf } from "@/server/lib/security";
 import { auditLog } from "@/server/lib/audit";
 import fs from "fs/promises";
@@ -90,7 +89,7 @@ export async function POST(request: NextRequest) {
 
     auditLog("upload.create", { userId: session.user.id, uploadId: upload.id, fileName: file.name });
 
-    let classes: ReturnType<typeof extractionResultSchema.parse>["classes"] = [];
+    let classes: Array<{ subject: string; code: string | null; instructor: string | null; room: string | null; section: string | null; days: string[]; startTime: string; endTime: string }> = [];
     let metadata = { totalClasses: 0, confidence: 0, notes: null as string | null };
 
     if (process.env.OPENROUTER_API_KEY) {
@@ -99,19 +98,24 @@ export async function POST(request: NextRequest) {
         const absoluteUrl = stored.url.startsWith("http")
           ? stored.url
           : `${origin}${stored.url}`;
-        const raw = await extractScheduleFromImage(absoluteUrl);
-        const parsed = extractionResultSchema.parse(raw);
 
-        const validClasses = parsed.classes.filter(
-          (c) => c.subject && c.days.length > 0 && c.startTime && c.endTime
-        );
+        const result = await aiService.processImage(absoluteUrl);
 
-        classes = validClasses;
-        metadata = {
-          totalClasses: validClasses.length,
-          confidence: parsed.metadata.confidence,
-          notes: parsed.metadata.notes,
-        };
+        if (result.success) {
+          const validClasses = result.data.classes.filter(
+            (c) => c.subject && c.days.length > 0 && c.startTime && c.endTime
+          );
+
+          classes = validClasses;
+          metadata = {
+            totalClasses: validClasses.length,
+            confidence: result.data.metadata.confidence,
+            notes: result.data.metadata.notes,
+          };
+        } else {
+          console.error("[UPLOAD_API] AI extraction error:", result.error.message);
+          metadata.notes = `AI extraction issue: ${result.error.message}`;
+        }
       } catch (aiErr) {
         console.error("[UPLOAD_API] AI extraction error:", aiErr);
       }
