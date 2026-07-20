@@ -7,12 +7,18 @@ const VISION_MODELS = [
   "google/gemma-4-26b-a4b-it:free",             // Primary
   "google/gemma-4-31b-it:free",                  // Fallback 1
   "nvidia/nemotron-nano-12b-v2-vl:free",          // Fallback 2
+  ...(process.env.NODE_ENV === "development"
+    ? ["poolside/laguna-m.1:free", "openai/gpt-oss-20b:free"]
+    : []),
 ];
 
 /* ===== Reasoning & Validation Models ===== */
 const VALIDATION_MODELS = [
   "tencent/hy3:free",                             // Primary
   "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free", // Fallback
+  ...(process.env.NODE_ENV === "development"
+    ? ["poolside/laguna-m.1:free"]
+    : []),
 ];
 
 const RETRY_DELAYS = [1000, 3000];
@@ -303,6 +309,161 @@ export async function validateExtractedData(extractedJson: Record<string, unknow
       ]).then(parseAiResponse),
     models,
   ).run();
+}
+
+/* ──────────────────────────────────────────────────────────────
+   Schedule Consistency Check
+   ────────────────────────────────────────────────────────────── */
+
+export interface ConsistencyIssue {
+  type: "missing_field" | "invalid_time" | "invalid_day" | "impossible_value" | "malformed_code";
+  classIndex: number;
+  field: string;
+  message: string;
+}
+
+const VALID_DAYS = new Set(["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]);
+const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+export function checkScheduleConsistency(data: {
+  classes?: Array<{
+    subject?: string | null;
+    courseCode?: string | null;
+    day?: string | null;
+    startTime?: string | null;
+    endTime?: string | null;
+    instructor?: string | null;
+    room?: string | null;
+    section?: string | null;
+  }>;
+}): { issues: ConsistencyIssue[]; score: number } {
+  const issues: ConsistencyIssue[] = [];
+
+  for (let i = 0; i < (data.classes ?? []).length; i++) {
+    const c = data.classes![i]!;
+
+    // Check required fields
+    if (!c.subject || c.subject.trim() === "") {
+      issues.push({ type: "missing_field", classIndex: i, field: "subject", message: `Class ${i + 1} is missing subject` });
+    }
+    if (!c.day || c.day.trim() === "") {
+      issues.push({ type: "missing_field", classIndex: i, field: "day", message: `Class ${i + 1} is missing day` });
+    } else if (!VALID_DAYS.has(c.day.toLowerCase().trim())) {
+      issues.push({ type: "invalid_day", classIndex: i, field: "day", message: `Class ${i + 1} has invalid day "${c.day}"` });
+    }
+    if (!c.startTime || c.startTime.trim() === "") {
+      issues.push({ type: "missing_field", classIndex: i, field: "startTime", message: `Class ${i + 1} is missing startTime` });
+    } else if (!TIME_PATTERN.test(c.startTime)) {
+      issues.push({ type: "invalid_time", classIndex: i, field: "startTime", message: `Class ${i + 1} has invalid startTime "${c.startTime}"` });
+    }
+    if (!c.endTime || c.endTime.trim() === "") {
+      issues.push({ type: "missing_field", classIndex: i, field: "endTime", message: `Class ${i + 1} is missing endTime` });
+    } else if (!TIME_PATTERN.test(c.endTime)) {
+      issues.push({ type: "invalid_time", classIndex: i, field: "endTime", message: `Class ${i + 1} has invalid endTime "${c.endTime}"` });
+    }
+
+    // Check impossible times
+    if (c.startTime && c.endTime && TIME_PATTERN.test(c.startTime) && TIME_PATTERN.test(c.endTime)) {
+      const startMin = parseInt(c.startTime.split(":")[0]!) * 60 + parseInt(c.startTime.split(":")[1]!);
+      const endMin = parseInt(c.endTime.split(":")[0]!) * 60 + parseInt(c.endTime.split(":")[1]!);
+      if (endMin <= startMin) {
+        issues.push({ type: "impossible_value", classIndex: i, field: "endTime", message: `Class ${i + 1} ends before it starts (${c.startTime} → ${c.endTime})` });
+      }
+    }
+
+    // Check malformed course codes
+    if (c.courseCode && c.courseCode.trim() !== "") {
+      const code = c.courseCode.trim();
+      if (!/^[A-Za-z0-9\s/-]+$/.test(code) || code.length < 3) {
+        issues.push({ type: "malformed_code", classIndex: i, field: "courseCode", message: `Class ${i + 1} has malformed courseCode "${code}"` });
+      }
+    }
+  }
+
+  // Calculate consistency score (0-1)
+  const totalChecks = (data.classes ?? []).length * 5;
+  const failed = issues.length;
+  const score = totalChecks > 0 ? Math.max(0, 1 - failed / totalChecks) : 1;
+
+  return { issues, score };
+}
+
+/* ──────────────────────────────────────────────────────────────
+   Conflict Detection (overlapping classes on same day)
+   ────────────────────────────────────────────────────────────── */
+
+export interface Conflict {
+  classA: number;
+  classB: number;
+  day: string;
+  message: string;
+}
+
+export function detectConflicts(data: {
+  classes?: Array<{
+    day?: string | null;
+    startTime?: string | null;
+    endTime?: string | null;
+    subject?: string | null;
+  }>;
+}): Conflict[] {
+  const conflicts: Conflict[] = [];
+
+  for (let i = 0; i < (data.classes ?? []).length; i++) {
+    for (let j = i + 1; j < (data.classes ?? []).length; j++) {
+      const a = data.classes![i]!;
+      const b = data.classes![j]!;
+
+      if (!a.day || !b.day || !a.startTime || !b.startTime || !a.endTime || !b.endTime) continue;
+
+      const dayA = a.day.toLowerCase().trim();
+      const dayB = b.day.toLowerCase().trim();
+      if (dayA !== dayB) continue;
+
+      if (!TIME_PATTERN.test(a.startTime) || !TIME_PATTERN.test(a.endTime) ||
+          !TIME_PATTERN.test(b.startTime) || !TIME_PATTERN.test(b.endTime)) continue;
+
+      const aStart = parseInt(a.startTime.split(":")[0]!) * 60 + parseInt(a.startTime.split(":")[1]!);
+      const aEnd = parseInt(a.endTime.split(":")[0]!) * 60 + parseInt(a.endTime.split(":")[1]!);
+      const bStart = parseInt(b.startTime.split(":")[0]!) * 60 + parseInt(b.startTime.split(":")[1]!);
+      const bEnd = parseInt(b.endTime.split(":")[0]!) * 60 + parseInt(b.endTime.split(":")[1]!);
+
+      // Check overlap: a starts before b ends AND a ends after b starts
+      if (aStart < bEnd && aEnd > bStart) {
+        conflicts.push({
+          classA: i,
+          classB: j,
+          day: a.day,
+          message: `"${a.subject || `Class ${i + 1}`}" overlaps with "${b.subject || `Class ${j + 1}`}" on ${a.day} (${a.startTime}-${a.endTime} vs ${b.startTime}-${b.endTime})`,
+        });
+      }
+    }
+  }
+
+  return conflicts;
+}
+
+/* ──────────────────────────────────────────────────────────────
+   Complete validation pipeline
+   ────────────────────────────────────────────────────────────── */
+
+export interface ValidationResult {
+  consistency: { issues: ConsistencyIssue[]; score: number };
+  conflicts: Conflict[];
+  hasConflicts: boolean;
+  hasConsistencyIssues: boolean;
+}
+
+export function validateSchedule(data: Record<string, unknown>): ValidationResult {
+  const consistency = checkScheduleConsistency(data as Parameters<typeof checkScheduleConsistency>[0]);
+  const conflicts = detectConflicts(data as Parameters<typeof detectConflicts>[0]);
+
+  return {
+    consistency,
+    conflicts,
+    hasConflicts: conflicts.length > 0,
+    hasConsistencyIssues: consistency.issues.length > 0,
+  };
 }
 
 export { VISION_MODELS, VALIDATION_MODELS };

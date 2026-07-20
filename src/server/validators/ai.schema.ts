@@ -62,6 +62,20 @@ export const extractedClassSchema = z.object({
     .regex(/^\d{2}:\d{2}$/, "Time must be in HH:MM format"),
 });
 
+export const conflictSchema = z.object({
+  classA: z.number(),
+  classB: z.number(),
+  day: z.string(),
+  message: z.string(),
+});
+
+export const consistencyIssueSchema = z.object({
+  type: z.string(),
+  classIndex: z.number(),
+  field: z.string(),
+  message: z.string(),
+});
+
 export const extractionResultSchema = z.object({
   semester: z.string().nullable().default(null),
   classes: z.array(extractedClassSchema),
@@ -75,6 +89,10 @@ export const extractionResultSchema = z.object({
       message: z.string(),
       classIndex: z.number().optional(),
     })).optional(),
+    consistencyScore: z.number().min(0).max(1).optional(),
+    hasConflicts: z.boolean().optional(),
+    conflicts: z.array(conflictSchema).optional(),
+    consistencyIssues: z.array(consistencyIssueSchema).optional(),
   }),
 });
 

@@ -1,4 +1,4 @@
-import { extractScheduleFromImage, validateExtractedData } from "@/server/lib/ai";
+import { extractScheduleFromImage, validateExtractedData, validateSchedule } from "@/server/lib/ai";
 import {
   aiValidationResultSchema,
   transformAiOutputToInternal,
@@ -19,7 +19,20 @@ export const aiService = {
           const validatedParsed = aiValidationResultSchema.safeParse(validated);
 
           if (validatedParsed.success) {
+            // 2a. Run schedule consistency check + conflict detection
+            const scheduleCheck = validateSchedule(validatedParsed.data as unknown as Record<string, unknown>);
+
             const transformed = transformAiOutputToInternal(validatedParsed.data);
+
+            // Attach validation metadata
+            transformed.metadata = {
+              ...transformed.metadata,
+              consistencyScore: scheduleCheck.consistency.score,
+              hasConflicts: scheduleCheck.hasConflicts,
+              conflicts: scheduleCheck.conflicts,
+              consistencyIssues: scheduleCheck.consistency.issues,
+            };
+
             return ok(transformed);
           } else {
             console.warn("[AI] Validation AI returned unparseable result, using raw extraction");
@@ -50,6 +63,17 @@ export const aiService = {
             notes: ((raw as Record<string, unknown>)?.metadata as Record<string, unknown>)?.notes as string ?? null,
           },
         };
+
+        // Run consistency check + conflict detection on raw output
+        const scheduleCheck = validateSchedule(raw as Record<string, unknown>);
+        (transformed as Record<string, unknown>).metadata = {
+          ...transformed.metadata,
+          consistencyScore: scheduleCheck.consistency.score,
+          hasConflicts: scheduleCheck.hasConflicts,
+          conflicts: scheduleCheck.conflicts,
+          consistencyIssues: scheduleCheck.consistency.issues,
+        };
+
         return ok(transformed as ExtractionResult);
       }
 
