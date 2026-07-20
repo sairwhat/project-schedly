@@ -32,41 +32,9 @@ export function useUpload() {
   const [extractedClasses, setExtractedClasses] = useState<ExtractedClass[]>([]);
   const [metadata, setMetadata] = useState<{ confidence: number; notes?: string | null } | null>(null);
 
-  const pollStatus = (uploadId: string): Promise<Record<string, unknown>> =>
-    new Promise((resolve, reject) => {
-      const interval = setInterval(async () => {
-        try {
-          const res = await fetch(`/api/upload/${uploadId}`, {
-            headers: { "x-csrf-protection": "1" },
-          });
-          if (!res.ok) {
-            clearInterval(interval);
-            reject(new Error("Failed to check upload status"));
-            return;
-          }
-          const data = await res.json();
-          if (data.status === "completed") {
-            clearInterval(interval);
-            resolve(data);
-          } else if (data.status === "failed") {
-            clearInterval(interval);
-            reject(new Error(data.errorMessage || "Processing failed"));
-          }
-        } catch (err) {
-          clearInterval(interval);
-          reject(err);
-        }
-      }, 1500);
-
-      setTimeout(() => {
-        clearInterval(interval);
-        reject(new Error("Processing timed out. Please try again."));
-      }, 120_000);
-    });
-
   const uploadFile = (file: File, ocrText?: string): Promise<Record<string, unknown>> => {
     const uploadId = crypto.randomUUID();
-    setUpload({ id: uploadId, status: "uploading", progress: 0, error: undefined });
+    setUpload({ id: uploadId, status: "uploading", progress: 0 });
     setIsUploading(true);
     setProgress(0);
     setIsProcessing(false);
@@ -88,47 +56,26 @@ export function useUpload() {
         setProgress(100);
 
         if (xhr.status >= 200 && xhr.status < 300) {
-          const data = JSON.parse(xhr.responseText);
-          const returnedUploadId = data.uploadId || uploadId;
-
-          setIsUploading(false);
-          setIsProcessing(true);
-          setUpload((prev) => prev ? {
-            ...prev,
-            status: "processing",
-            progress: 100,
-            fileUrl: data.fileUrl,
-            id: returnedUploadId,
-            error: undefined,
-          } : null);
-
-          pollStatus(returnedUploadId)
-            .then((result) => {
-              const r = result as {
-                classes?: ExtractedClass[];
-                metadata?: { confidence: number; notes?: string | null };
-                fileUrl?: string;
-                uploadId?: string;
-              };
-              setExtractedClasses(r.classes || []);
-              setMetadata(r.metadata || { confidence: 0 });
-              setUpload((prev) => prev ? {
-                ...prev,
-                status: "completed" as const,
-                progress: 100,
-                fileUrl: r.fileUrl,
-                id: r.uploadId ?? returnedUploadId,
-                error: undefined,
-              } : null);
-              setIsProcessing(false);
-              resolve(result);
-            })
-            .catch((pollErr) => {
-              const msg = pollErr instanceof Error ? pollErr.message : "Upload failed";
-              setUpload((prev) => prev ? { ...prev, status: "failed", error: msg } : null);
-              setIsProcessing(false);
-              reject(pollErr);
-            });
+          try {
+            const data = JSON.parse(xhr.responseText);
+            setExtractedClasses(data.classes || []);
+            setMetadata(data.metadata || { confidence: 0 });
+            setUpload((prev) => prev ? {
+              ...prev,
+              status: "completed",
+              progress: 100,
+              fileUrl: data.fileUrl,
+              id: data.uploadId,
+            } : null);
+            setIsUploading(false);
+            setIsProcessing(false);
+            resolve(data);
+          } catch {
+            setUpload((prev) => prev ? { ...prev, status: "failed", error: "Invalid response" } : null);
+            setIsUploading(false);
+            setIsProcessing(false);
+            reject(new Error("Invalid response"));
+          }
         } else {
           try {
             const err = JSON.parse(xhr.responseText);
@@ -155,6 +102,11 @@ export function useUpload() {
         setIsProcessing(false);
         setUpload((prev) => prev ? { ...prev, status: "failed", error: "Upload cancelled" } : null);
         reject(new Error("Upload cancelled"));
+      });
+
+      xhr.upload.addEventListener("load", () => {
+        setIsProcessing(true);
+        setUpload((prev) => prev ? { ...prev, status: "processing" } : null);
       });
 
       xhr.open("POST", "/api/upload");
