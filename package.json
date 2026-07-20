@@ -9,6 +9,8 @@
     "lint": "eslint",
     "test": "vitest",
     "test:run": "vitest run",
+    "bench": "vitest run src/bench/benchmark.test.ts",
+    "bench:baseline": "vitest run src/bench/baseline.test.ts",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:push": "prisma db push",

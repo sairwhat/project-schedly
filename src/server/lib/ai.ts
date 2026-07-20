@@ -1,8 +1,18 @@
 import { preprocessImage } from "./image-processing";
+import { PipelineLogger } from "./structured-logger";
 
 const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
 
-/* ===== Vision Models (Image Understanding) ===== */
+/**
+ * Confidence below this threshold triggers a single fallback vision-model
+ * re-extraction. High-confidence results skip the fallback entirely, keeping
+ * the common path to a single AI call.
+ */
+const CONFIDENCE_THRESHOLD = Number(process.env.AI_CONFIDENCE_THRESHOLD ?? 0.9);
+
+/* ===== Vision Models (Image Understanding) =====
+ * Ordered primary -> fallback. The primary is tried first; fallbacks are only
+ * used when the primary fails or returns low-confidence output. */
 const VISION_MODELS = [
   "google/gemma-4-26b-a4b-it:free",             // Primary
   "google/gemma-4-31b-it:free",                  // Fallback 1
@@ -12,7 +22,9 @@ const VISION_MODELS = [
     : []),
 ];
 
-/* ===== Reasoning & Validation Models ===== */
+/* ===== Reasoning & Validation Models (Hy3) =====
+ * Used only as a last resort when the vision models fail to produce a usable
+ * result, or for deep re-validation of low-confidence extractions. */
 const VALIDATION_MODELS = [
   "tencent/hy3:free",                             // Primary
   "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free", // Fallback
@@ -23,164 +35,52 @@ const VALIDATION_MODELS = [
 
 const RETRY_DELAYS = [1000, 3000];
 
-const SCHEDULE_EXTRACTION_PROMPT = `Treat the uploaded image as a structured class schedule, not plain OCR text. First understand the table layout (rows, columns, merged cells, headers, and relationships) before extracting data.
+/**
+ * Single, concise extraction prompt. Day abbreviation expansion is delegated to
+ * the deterministic normalizer (src/server/lib/day-normalizer.ts), so the model
+ * only returns raw day tokens — shrinking its failure surface and token usage.
+ * One pass, low latency.
+ */
+const SCHEDULE_EXTRACTION_PROMPT = `Treat the uploaded image as a structured class schedule, not plain OCR text. Analyze the complete table layout (rows, columns, merged cells, headers, relationships) first, then extract only valid class entries.
 
-A unique class is identified by (subject + room + startTime + endTime). If the same class appears on multiple meeting days with the same room and time, merge those days into a single record using a days array instead of creating duplicate classes. Only create separate records when the time or room is different. This rule must work for any day format (e.g., M, T, W, TH, F, SAT, SUN, MW, TF, MWF, TTH, or any school-specific notation).
+UNIQUE KEY: a class is (subject + room + startTime + endTime). If the same class meets on multiple days with identical room and time, MERGE the days into one record's days array — never create duplicate records. Only split when time or room differs.
 
-Expand any day abbreviations into full day names in the days array:
-- M, MON → "Monday"
-- T, TUE → "Tuesday"  
-- W, WED → "Wednesday"
-- TH, THU → "Thursday"
-- F, FRI → "Friday"
-- SAT → "Saturday"
-- SUN → "Sunday"
-- MW → ["Monday", "Wednesday"]
-- TF → ["Tuesday", "Thursday"]
-- TTH → ["Tuesday", "Thursday"]
-- MWF → ["Monday", "Wednesday", "Friday"]
-- MTW → ["Monday", "Tuesday", "Wednesday"]
+Parse day tokens in ANY format (M, T, W, TH, F, SAT, SUN, MW, TF, TTH, MWF, MTW, etc.) and return them as a days ARRAY of raw tokens (e.g. ["MWF"], ["TTH"]). Do NOT expand to full names — pass the original tokens through.
 
-For each real class entry, extract:
-- subject: The full name of the subject/course
-- courseCode: The course code (e.g., "MATH 201")
-- instructor: The instructor's name
-- room: The room number or location
-- section: The section number or identifier
-- block: The block/group identifier (e.g., "BSCS-1A")
-- days: Array of meeting days (expand all abbreviations to full day names)
-- startTime: 24-hour format "HH:MM"
-- endTime: 24-hour format "HH:MM"
-- notes: Any additional notes about the class
-
-Convert any 12-hour time (with AM/PM) to 24-hour. Examples: "9:00 AM" -> "09:00", "1:00 PM" -> "13:00", "12:00 AM" -> "00:00", "12:00 PM" -> "12:00"
-
-Return ONLY valid JSON in this exact format:
-{
-  "semester": "1st Semester 2026",
-  "classes": [
-    {
-      "subject": "Programming 2",
-      "courseCode": "CS102",
-      "days": ["Monday", "Wednesday"],
-      "startTime": "07:30",
-      "endTime": "09:00",
-      "room": "Lab 301",
-      "instructor": "Prof. Santos",
-      "section": "BSCS-1A",
-      "block": "BSCS-1A",
-      "notes": null
-    }
-  ],
-  "metadata": {
-    "totalClasses": 1,
-    "confidence": 0.95,
-    "notes": "Any observations about the schedule"
-  }
-}
+For each real class extract:
+- subject, courseCode, instructor, room, section, block
+- days: array of raw day tokens
+- startTime / endTime: 24-hour "HH:MM" (convert 12h AM/PM)
+- notes
 
 Rules:
-- Use full day names (Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday)
-- Use 24-hour time format (HH:MM)
-- Use a days ARRAY (never a single day string)
-- If a field is not visible, set it to null
-- If the image is not a schedule, return {"semester": null, "classes": [], "metadata": {"totalClasses": 0, "confidence": 0, "notes": "not_a_schedule"}}
-- NEVER create duplicate classes
-- Remove duplicate detections, ignore repeated OCR text, never hallucinate missing information
-- Perform a final self-validation to ensure there are no duplicate classes before returning the result`;
+- 24-hour "HH:MM" time only
+- days is always an ARRAY
+- Unseen fields -> null (never guess)
+- Ignore duplicate OCR text, headers, decorative elements
+- If not a schedule -> {"semester": null, "classes": [], "metadata": {"totalClasses": 0, "confidence": 0, "notes": "not_a_schedule"}}
 
-const VALIDATION_PROMPT = `Treat the uploaded image as a structured class schedule, not plain OCR text. First understand the table layout (rows, columns, merged cells, headers, and relationships) before extracting data.
-
-A unique class is identified by (subject + room + startTime + endTime). If the same class appears on multiple meeting days with the same room and time, merge those days into a single record using a days array instead of creating duplicate classes. Only create separate records when the time or room is different. This rule must work for any day format (e.g., M, T, W, TH, F, SAT, SUN, MW, TF, MWF, TTH, or any school-specific notation).
-
-Expand any day abbreviations into full day name arrays:
-- M, MON → "Monday"
-- T, TUE → "Tuesday"
-- W, WED → "Wednesday"
-- TH, THU → "Thursday"
-- F, FRI → "Friday"
-- SAT → "Saturday"
-- SUN → "Sunday"
-- MW → ["Monday", "Wednesday"]
-- TF → ["Tuesday", "Thursday"]
-- TTH → ["Tuesday", "Thursday"]
-- MWF → ["Monday", "Wednesday", "Friday"]
-
-For each class, check:
-1. Valid days (Monday-Sunday, stored as an array, normalized to proper case)
-2. Valid time format (HH:MM, 24-hour)
-3. No duplicate classes — a class is unique only if (subject + room + startTime + endTime) is unique. The days field is NOT part of the unique key. If two entries have the same subject, room, startTime, and endTime but different day codes, MERGE their days into one array.
-4. No impossible times (endTime must be after startTime)
-5. No overlapping classes on the same day
-6. Missing fields that should be flagged
-7. Malformed course codes
-8. Impossible values
-
-Automatically normalize:
-- Mon → Monday, TUE → Tuesday, etc.
-- 7-9 → 07:00-09:00
-- Rm301 → Room 301
-- Any 12h time with AM/PM → 24h format
-- Expand combined day abbreviations into full day name arrays
-
-DEDUPLICATION — This is critical:
-- Before returning, perform a self-validation pass to merge duplicate classes based on (subject, room, startTime, endTime). Combine their days arrays.
-- Remove duplicate detections, ignore repeated OCR text, never hallucinate missing information
-
-For each class, assign a confidence score (0-1) for each field:
-- subject confidence
-- courseCode confidence
-- days confidence
-- startTime / endTime confidence
-- room confidence
-- instructor confidence
-
-Return the corrected/validated JSON with confidence scores added to each class, plus a list of issues found.
-
-Return ONLY valid JSON in this exact format:
+Return ONLY valid JSON:
 {
-  "validated": true,
   "semester": "1st Semester 2026",
   "classes": [
-    {
-      "subject": "Programming 2",
-      "subject_confidence": 0.99,
-      "courseCode": "CS102",
-      "courseCode_confidence": 0.99,
-      "days": ["Monday", "Wednesday"],
-      "days_confidence": 0.99,
-      "startTime": "07:30",
-      "startTime_confidence": 0.99,
-      "endTime": "09:00",
-      "endTime_confidence": 0.99,
-      "room": "Lab 301",
-      "room_confidence": 0.95,
-      "instructor": "Prof. Santos",
-      "instructor_confidence": 0.95,
-      "section": "BSCS-1A",
-      "block": null,
-      "notes": null
-    }
+    {"subject": "Programming 2", "courseCode": "CS102", "days": ["MW"], "startTime": "07:30", "endTime": "09:00", "room": "Lab 301", "instructor": "Prof. Santos", "section": "BSCS-1A", "block": "BSCS-1A", "notes": null}
   ],
-  "issues": [
-    {"type": "normalized", "message": "Expanded MW → Monday,Wednesday for class 1", "classIndex": 0}
-  ],
-  "overallConfidence": 0.97
-}
-
-If no issues, return "issues": [].
-
-Perform a final self-validation to ensure there are no duplicate classes before returning the result.`;
+  "metadata": {"totalClasses": 1, "confidence": 0.95, "notes": null}
+}`;
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 async function fetchAndPreprocessImage(imageUrl: string) {
-  console.log("[AI] Fetching image from:", imageUrl);
+  const stage = "preprocess";
+  PipelineLogger.info(stage, "Fetching image", { imageUrl });
 
+  const t0 = performance.now();
   const response = await fetch(imageUrl);
   if (!response.ok) {
+    PipelineLogger.error(stage, "Failed to fetch image", { imageUrl, status: response.status });
     throw new Error(`Failed to fetch image: ${response.status}`);
   }
 
@@ -188,18 +88,25 @@ async function fetchAndPreprocessImage(imageUrl: string) {
   const arrayBuffer = await response.arrayBuffer();
   const rawBuffer = Buffer.from(arrayBuffer);
 
-  console.log("[AI] Image fetched:", rawBuffer.length, "bytes,", contentType);
+  PipelineLogger.debug(stage, "Image fetched", {
+    bytes: rawBuffer.length,
+    contentType,
+    fetchMs: Math.round(performance.now() - t0),
+  });
 
-  // ── Preprocess the image before AI analysis ──────────────────────
-  console.log("[AI] Preprocessing image (auto-crop, denoise, sharpen, enhance, auto-rotate)...");
+  const pt0 = performance.now();
+  // Preprocess the image before AI analysis (OpenCV + sharp).
   const processedBuffer = await preprocessImage(rawBuffer);
-  console.log("[AI] Preprocessed image:", processedBuffer.length, "bytes");
+  PipelineLogger.info(stage, "Image preprocessed", {
+    outBytes: processedBuffer.length,
+    preprocessMs: Math.round(performance.now() - pt0),
+  });
 
   const base64 = processedBuffer.toString("base64");
   return { base64, contentType: "image/jpeg" };
 }
 
-async function callOpenRouter(model: string, messages: unknown[], options?: { structured?: boolean }) {
+async function callOpenRouter(model: string, messages: unknown[]) {
   const apiKey = process.env.OPENROUTER_API_KEY;
 
   const response = await fetch(OPENROUTER_API_URL, {
@@ -218,15 +125,27 @@ async function callOpenRouter(model: string, messages: unknown[], options?: { st
     }),
   });
 
-  const data = await response.json();
+  // Read the body as text first so a non-JSON response (HTML error page,
+  // gateway failure, truncated payload) doesn't throw a raw SyntaxError that
+  // escapes as "Unexpected token ... is not valid JSON".
+  const bodyText = await response.text();
+  let data: unknown;
+  try {
+    data = bodyText ? JSON.parse(bodyText) : null;
+  } catch {
+    const snippet = bodyText.slice(0, 200).replace(/\s+/g, " ");
+    throw new Error(
+      `AI provider returned a non-JSON response (status ${response.status}): ${snippet || "(empty)"}`,
+    );
+  }
 
   if (!response.ok) {
     const status = response.status;
-    const msg = data?.error?.message || "Unknown";
+    const msg = (data as { error?: { message?: string } })?.error?.message || "Unknown";
     console.error(`[AI] API error: ${status} on ${model}:`, msg);
 
     if (status === 429) {
-      const retryAfter = data?.error?.metadata?.retry_after_seconds_raw || 10;
+      const retryAfter = (data as { error?: { metadata?: { retry_after_seconds_raw?: number } } })?.error?.metadata?.retry_after_seconds_raw || 10;
       throw { code: "RATE_LIMITED", model, retryAfter, message: msg };
     }
 
@@ -249,83 +168,117 @@ function parseAiResponse(data: unknown) {
 
   const jsonMatch = String(text).match(/\{[\s\S]*\}/);
   if (!jsonMatch) {
-    throw new Error("No JSON in AI response");
+    throw new Error(`No JSON in AI response. Snippet: ${String(text).slice(0, 200)}`);
   }
 
-  return JSON.parse(jsonMatch[0]) as Record<string, unknown>;
+  try {
+    return JSON.parse(jsonMatch[0]) as Record<string, unknown>;
+  } catch {
+    throw new Error(`AI response contained malformed JSON. Snippet: ${jsonMatch[0].slice(0, 200)}`);
+  }
 }
 
-function withRetry<T>(
+// Test-only re-exports (used by ai-response.test.ts to assert error handling).
+export const callOpenRouterTest = callOpenRouter;
+export const parseAiResponseTest = parseAiResponse;
+
+function isRateLimited(err: unknown): err is { retryAfter: number; model: string } {
+  return (
+    !!err &&
+    typeof err === "object" &&
+    "code" in err &&
+    (err as { code: unknown }).code === "RATE_LIMITED"
+  );
+}
+
+/**
+ * Runs `call(model)` across the model list, retrying transient errors on the
+ * SAME model and escalating to the next model only after that model is
+ * exhausted. Returns the first successful result, or throws the last error.
+ */
+async function runWithModelFallback<T>(
   call: (model: string) => Promise<T>,
   models: string[],
-): { run: () => Promise<T> } {
-  return {
-    async run() {
-      let lastError: unknown;
-      for (const model of models) {
-        for (let attempt = 0; attempt <= RETRY_DELAYS.length; attempt++) {
-          try {
-            console.log(`[AI] Attempt ${attempt + 1}/${RETRY_DELAYS.length + 1} with model: ${model}`);
-            return await call(model);
-          } catch (err) {
-            lastError = err;
-            if (err && typeof err === "object" && "code" in err && (err as { code: unknown }).code === "RATE_LIMITED") {
-              const rateErr = err as unknown as { retryAfter: number; model: string };
-              console.log(`[AI] Rate limited on ${rateErr.model}, retrying in ${rateErr.retryAfter}s or switching model`);
-              if (attempt < RETRY_DELAYS.length) {
-                const delay = Math.min(Math.max(rateErr.retryAfter * 1000, RETRY_DELAYS[attempt]!), 5000);
-                console.log(`[AI] Waiting ${delay}ms before retry ${attempt + 2}...`);
-                await sleep(delay);
-                continue;
-              }
-              break;
-            }
-            if (attempt < RETRY_DELAYS.length) {
-              console.log(`[AI] Transient error, retrying in ${RETRY_DELAYS[attempt]}ms...`);
-              await sleep(RETRY_DELAYS[attempt]!);
-              continue;
-            }
+): Promise<T> {
+  let lastError: unknown;
+
+  for (const model of models) {
+    let exhausted = false;
+    for (let attempt = 0; attempt <= RETRY_DELAYS.length; attempt++) {
+      try {
+        PipelineLogger.debug("extract", `Attempt ${attempt + 1}/${RETRY_DELAYS.length + 1}`, { model });
+        return await call(model);
+      } catch (err) {
+        lastError = err;
+        if (isRateLimited(err)) {
+          console.log(`[AI] Rate limited on ${err.model}`);
+          if (attempt < RETRY_DELAYS.length) {
+            const delay = Math.min(Math.max(err.retryAfter * 1000, RETRY_DELAYS[attempt]!), 5000);
+            await sleep(delay);
+            continue;
           }
+          exhausted = true;
+          break;
         }
-        console.log(`[AI] All retries exhausted for model: ${model}, trying next model`);
+        if (attempt < RETRY_DELAYS.length) {
+          console.log(`[AI] Transient error, retrying in ${RETRY_DELAYS[attempt]}ms...`);
+          await sleep(RETRY_DELAYS[attempt]!);
+          continue;
+        }
+        exhausted = true;
+        break;
       }
-      const message = lastError instanceof Error ? lastError.message : "AI extraction failed after all retries";
-      throw new Error(message);
-    },
-  };
+    }
+    if (!exhausted) break;
+    console.log(`[AI] Model ${model} exhausted, escalating to next model`);
+  }
+
+  const message = lastError instanceof Error ? lastError.message : "AI request failed after all retries";
+  throw new Error(message);
 }
 
-export async function extractScheduleFromImage(imageUrl: string) {
+export interface ExtractResult {
+  data: Record<string, unknown>;
+  model: string;
+}
+
+export async function extractScheduleFromImage(
+  imageUrl: string,
+  preloaded?: { base64: string; contentType: string },
+): Promise<ExtractResult> {
   const configuredModel = process.env.OPENROUTER_MODEL;
 
-  // If a custom model is configured, try it first, then fall back to defaults
+  // Custom model first (still keeps the fallback chain behind it).
   const models = configuredModel
     ? [configuredModel, ...VISION_MODELS.filter((m) => m !== configuredModel)]
     : VISION_MODELS;
 
-  console.log("[AI] Image extraction — models:", models.join(", "));
+  PipelineLogger.info("extract", "Starting vision extraction", { models });
 
-  const { base64, contentType } = await fetchAndPreprocessImage(imageUrl);
+  const { base64, contentType } = preloaded ?? (await fetchAndPreprocessImage(imageUrl));
 
-  return withRetry(
-    (model) =>
-      callOpenRouter(
-        model,
-        [
-          {
-            role: "user",
-            content: [
-              { type: "text", text: SCHEDULE_EXTRACTION_PROMPT },
-              {
-                type: "image_url",
-                image_url: { url: `data:${contentType};base64,${base64}` },
-              },
-            ],
-          },
-        ],
-      ).then(parseAiResponse),
+  let usedModel = models[0]!;
+  const data = await runWithModelFallback(
+    (model) => {
+      usedModel = model;
+      return callOpenRouter(model, [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: SCHEDULE_EXTRACTION_PROMPT },
+            {
+              type: "image_url",
+              image_url: { url: `data:${contentType};base64,${base64}` },
+            },
+          ],
+        },
+      ]).then(parseAiResponse);
+    },
     models,
-  ).run();
+  );
+
+  PipelineLogger.info("extract", "Vision extraction complete", { model: usedModel });
+  return { data, model: usedModel };
 }
 
 export async function validateExtractedData(extractedJson: Record<string, unknown>) {
@@ -334,23 +287,31 @@ export async function validateExtractedData(extractedJson: Record<string, unknow
     ? [configuredModel, ...VALIDATION_MODELS.filter((m) => m !== configuredModel)]
     : VALIDATION_MODELS;
 
-  console.log("[AI] Validation — models:", models.join(", "));
+  PipelineLogger.info("validate", "Starting Hy3 re-validation", { models });
 
-  return withRetry(
-    (model) =>
-      callOpenRouter(model, [
+  let usedModel = models[0]!;
+  const data = await runWithModelFallback(
+    (model) => {
+      usedModel = model;
+      return callOpenRouter(model, [
         {
           role: "user",
-          content: VALIDATION_PROMPT + "\n\n" + JSON.stringify(extractedJson, null, 2),
+          content:
+            `Re-validate this extracted schedule JSON. Merge duplicates by (subject+room+startTime+endTime), ` +
+            `normalize day tokens, fix impossible times, and return the same JSON schema with an "overallConfidence" field.\n\n` +
+            JSON.stringify(extractedJson, null, 2),
         },
-      ]).then(parseAiResponse),
+      ]).then(parseAiResponse);
+    },
     models,
-  ).run();
+  );
+  PipelineLogger.info("validate", "Hy3 re-validation complete", { model: usedModel });
+  return data;
 }
 
-/* ──────────────────────────────────────────────────────────────
+/* ----------------------------------------------------------------------
    Schedule Consistency Check
-   ────────────────────────────────────────────────────────────── */
+   ---------------------------------------------------------------------- */
 
 export interface ConsistencyIssue {
   type: "missing_field" | "invalid_time" | "invalid_day" | "impossible_value" | "malformed_code";
@@ -380,7 +341,6 @@ export function checkScheduleConsistency(data: {
   for (let i = 0; i < (data.classes ?? []).length; i++) {
     const c = data.classes![i]!;
 
-    // Support both days array and single day string
     const daysList = c.days ?? (c.day ? [c.day] : []);
 
     if (!c.subject || c.subject.trim() === "") {
@@ -406,7 +366,6 @@ export function checkScheduleConsistency(data: {
       issues.push({ type: "invalid_time", classIndex: i, field: "endTime", message: `Class ${i + 1} has invalid endTime "${c.endTime}"` });
     }
 
-    // Check impossible times
     if (c.startTime && c.endTime && TIME_PATTERN.test(c.startTime) && TIME_PATTERN.test(c.endTime)) {
       const startMin = parseInt(c.startTime.split(":")[0]!) * 60 + parseInt(c.startTime.split(":")[1]!);
       const endMin = parseInt(c.endTime.split(":")[0]!) * 60 + parseInt(c.endTime.split(":")[1]!);
@@ -415,7 +374,6 @@ export function checkScheduleConsistency(data: {
       }
     }
 
-    // Check malformed course codes
     if (c.courseCode && c.courseCode.trim() !== "") {
       const code = c.courseCode.trim();
       if (!/^[A-Za-z0-9\s/-]+$/.test(code) || code.length < 3) {
@@ -424,7 +382,6 @@ export function checkScheduleConsistency(data: {
     }
   }
 
-  // Calculate consistency score (0-1)
   const totalChecks = (data.classes ?? []).length * 5;
   const failed = issues.length;
   const score = totalChecks > 0 ? Math.max(0, 1 - failed / totalChecks) : 1;
@@ -432,9 +389,9 @@ export function checkScheduleConsistency(data: {
   return { issues, score };
 }
 
-/* ──────────────────────────────────────────────────────────────
+/* ----------------------------------------------------------------------
    Conflict Detection (overlapping classes on same day)
-   ────────────────────────────────────────────────────────────── */
+   ---------------------------------------------------------------------- */
 
 export interface Conflict {
   classA: number;
@@ -473,9 +430,7 @@ export function detectConflicts(data: {
       const bStart = parseInt(b.startTime.split(":")[0]!) * 60 + parseInt(b.startTime.split(":")[1]!);
       const bEnd = parseInt(b.endTime.split(":")[0]!) * 60 + parseInt(b.endTime.split(":")[1]!);
 
-      // Check overlap: a starts before b ends AND a ends after b starts
       if (aStart < bEnd && aEnd > bStart) {
-        // Check if any day overlaps
         const normA = daysA.map((d: string) => d.toLowerCase().trim());
         const normB = daysB.map((d: string) => d.toLowerCase().trim());
         const sharedDays = normA.filter((d: string) => normB.includes(d));
@@ -494,9 +449,9 @@ export function detectConflicts(data: {
   return conflicts;
 }
 
-/* ──────────────────────────────────────────────────────────────
+/* ----------------------------------------------------------------------
    Complete validation pipeline
-   ────────────────────────────────────────────────────────────── */
+   ---------------------------------------------------------------------- */
 
 export interface ValidationResult {
   consistency: { issues: ConsistencyIssue[]; score: number };
@@ -517,4 +472,4 @@ export function validateSchedule(data: Record<string, unknown>): ValidationResul
   };
 }
 
-export { VISION_MODELS, VALIDATION_MODELS };
+export { VISION_MODELS, VALIDATION_MODELS, CONFIDENCE_THRESHOLD };

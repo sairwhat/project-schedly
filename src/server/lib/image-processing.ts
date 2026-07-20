@@ -1,4 +1,6 @@
 ﻿import sharp from "sharp";
+import { createRequire } from "node:module";
+import path from "node:path";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type CVModule = any;
@@ -6,14 +8,20 @@ type CVModule = any;
 let _cv: CVModule | null = null;
 
 async function getCV(): Promise<CVModule> {
- if (_cv) return _cv;
- const { cv } = await import("opencv-wasm");
- return new Promise((resolve) => {
-  cv.then((mod: CVModule) => {
-   _cv = mod;
-   resolve(mod);
+  if (_cv) return _cv;
+  const require = createRequire(import.meta.url);
+  const opencvDir = path.dirname(require.resolve("opencv-wasm/package.json"));
+  const wasmPath = path.join(opencvDir, "opencv.wasm");
+  const { cv } = await import("opencv-wasm");
+  const cvFn = cv as unknown as (mod: Record<string, unknown>) => Promise<CVModule>;
+  return new Promise((resolve, reject) => {
+    cvFn({
+      locateFile: (p: string) => (p.endsWith(".wasm") ? wasmPath : p),
+    }).then((mod: CVModule) => {
+      _cv = mod;
+      resolve(mod);
+    }).catch(reject);
   });
- });
 }
 
 /* ──────────────────────────────────────────────────────────────

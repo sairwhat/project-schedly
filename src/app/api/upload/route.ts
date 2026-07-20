@@ -145,11 +145,12 @@ export async function POST(request: NextRequest) {
           );
         } else {
           console.error("[UPLOAD_API] AI extraction error:", result.error.message);
-          await uploadService.updateStatus(upload.id, "completed");
+          await uploadService.updateStatus(upload.id, "completed", result.error.message);
         }
       } catch (aiErr) {
+        const msg = aiErr instanceof Error ? aiErr.message : "AI processing failed";
         console.error("[UPLOAD_API] AI extraction error:", aiErr);
-        await uploadService.updateStatus(upload.id, "completed");
+        await uploadService.updateStatus(upload.id, "completed", msg);
       }
     } else {
       await uploadService.updateStatus(upload.id, "completed");

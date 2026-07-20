@@ -44,13 +44,21 @@ export function useUpload() {
             reject(new Error("Failed to check upload status"));
             return;
           }
-          const data = await res.json();
+          const text = await res.text();
+          let data: Record<string, unknown>;
+          try {
+            data = JSON.parse(text);
+          } catch {
+            clearInterval(interval);
+            reject(new Error("Server returned an invalid response. Please try again."));
+            return;
+          }
           if (data.status === "completed") {
             clearInterval(interval);
             resolve(data);
           } else if (data.status === "failed") {
             clearInterval(interval);
-            reject(new Error(data.errorMessage || "Processing failed"));
+            reject(new Error(typeof data.errorMessage === "string" ? data.errorMessage : "Processing failed"));
           }
         } catch (err) {
           clearInterval(interval);
@@ -88,8 +96,17 @@ export function useUpload() {
         setProgress(100);
 
         if (xhr.status >= 200 && xhr.status < 300) {
-          const data = JSON.parse(xhr.responseText);
-          const returnedUploadId = data.uploadId || uploadId;
+          let data: Record<string, unknown>;
+          try {
+            data = JSON.parse(xhr.responseText);
+          } catch {
+            setUpload((prev) => prev ? { ...prev, status: "failed", error: "Server returned an invalid response." } : null);
+            setIsUploading(false);
+            setIsProcessing(false);
+            reject(new Error("Server returned an invalid response."));
+            return;
+          }
+          const returnedUploadId = (typeof data.uploadId === "string" ? data.uploadId : uploadId);
 
           setIsUploading(false);
           setIsProcessing(true);
@@ -97,7 +114,7 @@ export function useUpload() {
             ...prev,
             status: "processing",
             progress: 100,
-            fileUrl: data.fileUrl,
+            fileUrl: typeof data.fileUrl === "string" ? data.fileUrl : undefined,
             id: returnedUploadId,
             error: undefined,
           } : null);
@@ -132,7 +149,10 @@ export function useUpload() {
         } else {
           try {
             const err = JSON.parse(xhr.responseText);
-            throw new Error(err.error || "Upload failed");
+            setUpload((prev) => prev ? { ...prev, status: "failed", error: err.error || "Upload failed" } : null);
+            setIsUploading(false);
+            setIsProcessing(false);
+            reject(new Error(err.error || "Upload failed"));
           } catch (e) {
             const msg = e instanceof Error ? e.message : "Upload failed";
             setUpload((prev) => prev ? { ...prev, status: "failed", error: msg } : null);

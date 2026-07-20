@@ -5,38 +5,56 @@ const daysOfWeek = [
 ] as const;
 
 /* ===== AI Output Schema (per Architecture Doc) ===== */
-const aiDayEnum = z.enum(["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]);
+const aiDayEnum = z
+  .string()
+  .min(1)
+  .transform((d) => d.trim());
+
+const confidenceField = z
+  .union([z.number(), z.string()])
+  .transform((v) => {
+    const n = typeof v === "string" ? parseFloat(v) : v;
+    if (Number.isNaN(n)) return 0.5;
+    // Accept percentages (0-100) and normalize to 0-1
+    return n > 1 ? Math.min(n / 100, 1) : Math.max(0, Math.min(n, 1));
+  })
+  .optional();
 
 export const aiClassSchema = z.object({
   subject: z.string().min(1),
-  subject_confidence: z.number().min(0).max(1).optional(),
+  subject_confidence: confidenceField,
   courseCode: z.string().nullable().default(null),
-  courseCode_confidence: z.number().min(0).max(1).optional(),
+  courseCode_confidence: confidenceField,
   days: z.array(aiDayEnum).min(1),
-  days_confidence: z.number().min(0).max(1).optional(),
+  days_confidence: confidenceField,
   startTime: z.string().regex(/^\d{2}:\d{2}$/),
-  startTime_confidence: z.number().min(0).max(1).optional(),
+  startTime_confidence: confidenceField,
   endTime: z.string().regex(/^\d{2}:\d{2}$/),
-  endTime_confidence: z.number().min(0).max(1).optional(),
+  endTime_confidence: confidenceField,
   room: z.string().nullable().default(null),
-  room_confidence: z.number().min(0).max(1).optional(),
+  room_confidence: confidenceField,
   instructor: z.string().nullable().default(null),
-  instructor_confidence: z.number().min(0).max(1).optional(),
+  instructor_confidence: confidenceField,
   section: z.string().nullable().default(null),
   block: z.string().nullable().default(null),
   notes: z.string().nullable().default(null),
 });
 
 export const aiValidationResultSchema = z.object({
-  validated: z.boolean(),
+  validated: z.boolean().optional().default(true),
   semester: z.string().nullable().default(null),
   classes: z.array(aiClassSchema),
-  issues: z.array(z.object({
-    type: z.string(),
-    message: z.string(),
-    classIndex: z.number().optional(),
-  })),
-  overallConfidence: z.number().min(0).max(1),
+  issues: z
+    .array(
+      z.object({
+        type: z.string().optional().default("unknown"),
+        message: z.string().optional().default(""),
+        classIndex: z.number().optional(),
+      })
+    )
+    .optional()
+    .default([]),
+  overallConfidence: confidenceField.default(0.5),
 });
 
 export type AiClass = z.infer<typeof aiClassSchema>;
@@ -124,11 +142,15 @@ export const saveScheduleSchema = z.object({
 export type SaveScheduleInput = z.infer<typeof saveScheduleSchema>;
 
 /* ===== Transform AI output → Internal format ===== */
+import { normalizeDays } from "@/server/lib/day-normalizer";
+
 export function transformAiOutputToInternal(aiOutput: AiValidationResult): ExtractionResult {
   const issues = aiOutput.issues || [];
 
   const classes = aiOutput.classes.map((aiClass) => {
-    const lowered = aiClass.days.map((d) => d.toLowerCase()) as typeof daysOfWeek[number][];
+    // Deterministically normalize day tokens — never trust the model's own
+    // expansion. This is what prevents "TF" from becoming Tue/Thu.
+    const norm = normalizeDays(aiClass.days);
 
     return {
       subject: aiClass.subject,
@@ -137,7 +159,7 @@ export function transformAiOutputToInternal(aiOutput: AiValidationResult): Extra
       room: aiClass.room,
       section: aiClass.section,
       block: aiClass.block,
-      days: lowered,
+      days: norm.days,
       startTime: aiClass.startTime,
       endTime: aiClass.endTime,
       confidence: aiClass.startTime_confidence ?? aiOutput.overallConfidence ?? 1,
