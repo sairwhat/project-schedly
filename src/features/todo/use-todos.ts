@@ -129,11 +129,11 @@ export function useTodos() {
       mutationCount++;
       persist([todo, ...cached]);
       const result = await addTodoAction(todo.text, priority, dueDate);
-      if (result.success) {
+      if (result.success && result.todo?.id) {
         // The server assigns its own UUID; adopt it so toggling/editing/deleting
         // this task finds the real DB row instead of failing and reverting.
         persist(cached.map((t) => (t.id === id ? { ...t, id: result.todo.id } : t)));
-      } else {
+      } else if (!result.success) {
         persist(prev);
         console.error("[ADD_TODO]", result.error);
       }
