@@ -24,7 +24,9 @@ export async function getTodos() {
   });
 }
 
-export type AddTodoResult = { success: true } | { success: false; error: string };
+export type AddTodoResult =
+  | { success: true; todo: { id: string } }
+  | { success: false; error: string };
 
 export async function addTodoAction(
   text: string,
@@ -41,7 +43,7 @@ export async function addTodoAction(
   if (dueDate && !DUE_DATE_RE.test(dueDate)) return { success: false, error: "Invalid due date" };
 
   try {
-    await db.todo.create({
+    const created = await db.todo.create({
       data: {
         userId: session.user.id,
         text: clean,
@@ -49,7 +51,7 @@ export async function addTodoAction(
         dueDate: dueDate || undefined,
       },
     });
-    return { success: true };
+    return { success: true, todo: { id: created.id } };
   } catch (err) {
     console.error("[ADD_TODO]", err);
     return { success: false, error: "Failed to add task" };

@@ -27,6 +27,7 @@ const STORAGE_KEY = "schedly-todos";
 const listeners = new Set<() => void>();
 let loaded = false;
 let cached: TodoItem[] = [];
+let mutationCount = 0;
 const EMPTY_TODOS: TodoItem[] = [];
 
 function readStorage(): TodoItem[] {
@@ -92,12 +93,16 @@ export function useTodos() {
   const todos = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 
   // Sync from the database on first load; fall back to the local cache when
-  // the network is down so tasks keep showing while offline.
+  // the network is down so tasks keep showing while offline. If the user
+  // mutates while the fetch is in flight, skip the sync so it doesn't clobber
+  // their optimistic change (which the server action will persist anyway).
   useEffect(() => {
     let active = true;
+    const startedAt = mutationCount;
     getTodos()
       .then((rows) => {
         if (!active) return;
+        if (mutationCount !== startedAt) return;
         persist(rows.map(rowToItem));
       })
       .catch((err) => {
@@ -121,9 +126,14 @@ export function useTodos() {
         createdAt: Date.now(),
       };
       const prev = cached;
+      mutationCount++;
       persist([todo, ...cached]);
       const result = await addTodoAction(todo.text, priority, dueDate);
-      if (!result.success) {
+      if (result.success) {
+        // The server assigns its own UUID; adopt it so toggling/editing/deleting
+        // this task finds the real DB row instead of failing and reverting.
+        persist(cached.map((t) => (t.id === id ? { ...t, id: result.todo.id } : t)));
+      } else {
         persist(prev);
         console.error("[ADD_TODO]", result.error);
       }
@@ -142,6 +152,7 @@ export function useTodos() {
           }
         : t
     );
+    mutationCount++;
     persist(next);
     const result = await toggleTodoAction(id);
     if (!result.success) {
@@ -151,6 +162,7 @@ export function useTodos() {
 
   const deleteTodo = useCallback(async (id: string) => {
     const prev = cached;
+    mutationCount++;
     persist(cached.filter((t) => t.id !== id));
     const result = await deleteTodoAction(id);
     if (!result.success) {
@@ -160,6 +172,7 @@ export function useTodos() {
 
   const clearCompleted = useCallback(async () => {
     const prev = cached;
+    mutationCount++;
     persist(cached.filter((t) => !t.completed));
     const result = await clearCompletedAction();
     if (!result.success) {
@@ -172,6 +185,7 @@ export function useTodos() {
     const next = cached.map((t) =>
       t.id === id ? { ...t, text: text.trim(), priority, dueDate: dueDate || undefined } : t
     );
+    mutationCount++;
     persist(next);
     const result = await editTodoAction(id, text, priority, dueDate);
     if (!result.success) {
