@@ -71,6 +71,7 @@ model User {
   feedbacks     Feedback[]
   pushSubscriptions PushSubscription[]
   fcmTokens        FCMToken[]
+  auditLogs        AuditLog[]
 
   @@map("users")
 }
@@ -285,6 +286,27 @@ model Feedback {
 
   @@index([userId])
   @@map("feedback")
+}
+
+// Persistent audit trail of user and admin activity. Written fire-and-forget
+// from auditLog() so it never blocks the main flow. Kept even if the user is
+// deleted (user_id is SET NULL, identity snapshot lives in email).
+model AuditLog {
+  id        String   @id @default(uuid())
+  action    String
+  userId    String?  @map("user_id")
+  email     String?
+  ipAddress String?  @map("ip_address")
+  userAgent String?  @map("user_agent")
+  metadata  Json?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([action])
+  @@index([userId])
+  @@index([createdAt])
+  @@map("audit_logs")
 }
 
 // Persistent rate-limit counters shared across serverless instances.

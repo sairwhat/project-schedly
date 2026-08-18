@@ -35,6 +35,29 @@ export async function POST(request: NextRequest) {
 
   const response = await _POST(request);
 
+  if (url.pathname.endsWith("/sign-up/email") && response.status === 200) {
+    try {
+      const body = await request.clone().json();
+      const data = await response.clone().json();
+      auditLog("user.register", {
+        email: body?.email ?? data?.user?.email,
+        userId: data?.user?.id,
+      });
+    } catch { /* passthrough */ }
+  }
+
+  if (url.pathname.endsWith("/sign-out") && response.status === 200) {
+    try {
+      const session = await auth.api.getSession({ headers: request.headers });
+      if (session?.user?.id) {
+        auditLog("user.logout", {
+          userId: session.user.id,
+          email: session.user.email,
+        });
+      }
+    } catch { /* passthrough */ }
+  }
+
   if (url.pathname.endsWith("/sign-in/email")) {
     try {
       const body = await request.clone().json();

@@ -33,4 +33,38 @@ export const feedbackRepository = {
   updateStatus(id: string, status: string) {
     return db.feedback.update({ where: { id }, data: { status } });
   },
+
+  findAll({
+    status,
+    type,
+    limit,
+    cursor,
+  }: {
+    status?: string;
+    type?: FeedbackType;
+    limit: number;
+    cursor?: string;
+  }) {
+    return db.feedback.findMany({
+      where: {
+        ...(status ? { status } : {}),
+        ...(type ? { type } : {}),
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            username: true,
+          },
+        },
+      },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      take: limit,
+      skip: cursor ? 1 : 0,
+      cursor: cursor ? { id: cursor } : undefined,
+    });
+  },
 };

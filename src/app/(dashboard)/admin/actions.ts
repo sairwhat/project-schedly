@@ -6,6 +6,11 @@ import { adminService } from "@/server/services/admin.service";
 import { auditLog } from "@/server/lib/audit";
 import { db } from "@/server/db/client";
 import { getLimitsStats } from "@/server/services/limits.service";
+import { auditRepository } from "@/server/repositories/audit.repository";
+import { feedbackRepository } from "@/server/repositories/feedback.repository";
+import type { FeedbackType } from "@/generated/prisma/client";
+
+const PAGE_SIZE = 50;
 
 async function requireAdmin() {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -78,4 +83,55 @@ export async function sendBroadcastNotification(opts: {
   });
 
   return result;
+}
+
+export async function getAuditLogs(opts: {
+  action?: string;
+  cursor?: string;
+}) {
+  await requireAdmin();
+  const limit = PAGE_SIZE;
+  const logs = await auditRepository.findMany({
+    action: opts.action || undefined,
+    limit,
+    cursor: opts.cursor,
+  });
+  const nextCursor = logs.length === limit ? (logs.at(-1)?.id ?? null) : null;
+  return { logs, nextCursor };
+}
+
+export async function getAuditActions() {
+  await requireAdmin();
+  return auditRepository.distinctActions();
+}
+
+export async function getAdminFeedback(opts: {
+  status?: string;
+  type?: string;
+  cursor?: string;
+}) {
+  await requireAdmin();
+  const limit = PAGE_SIZE;
+  const feedback = await feedbackRepository.findAll({
+    status: opts.status || undefined,
+    type: (opts.type as FeedbackType | undefined) || undefined,
+    limit,
+    cursor: opts.cursor,
+  });
+  const nextCursor = feedback.length === limit ? (feedback.at(-1)?.id ?? null) : null;
+  return { feedback, nextCursor };
+}
+
+export async function updateFeedbackStatus(id: string, status: string) {
+  const session = await requireAdmin();
+  if (status !== "open" && status !== "resolved") {
+    throw new Error("Invalid status.");
+  }
+  const feedback = await feedbackRepository.updateStatus(id, status);
+  auditLog("feedback.status_update", {
+    callerId: session.user.id,
+    feedbackId: id,
+    status,
+  });
+  return { id: feedback.id, status: feedback.status };
 }

@@ -5,6 +5,7 @@ import { db } from "@/server/db/client";
 import { headers } from "next/headers";
 import { detectImageMime } from "@/server/lib/security";
 import { storeImage, deleteStoredFileByUrl } from "@/server/services/file-store.service";
+import { auditLog } from "@/server/lib/audit";
 
 export async function uploadAvatar(formData: FormData): Promise<{ url: string } | { error: string }> {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -99,6 +100,12 @@ export async function deleteAccount(username: string): Promise<{ ok: true } | { 
   try {
     // All related data (schedules, classes, notes, to-dos, notifications,
     // sessions) is removed by the database's ON DELETE CASCADE.
+    // Audited before deletion; deletedUserId is kept in metadata so the
+    // identity snapshot survives even though the FK is set to null.
+    auditLog("user.delete", {
+      deletedUserId: session.user.id,
+      email: session.user.email,
+    });
     await db.user.delete({ where: { id: session.user.id } });
     return { ok: true };
   } catch (err) {
