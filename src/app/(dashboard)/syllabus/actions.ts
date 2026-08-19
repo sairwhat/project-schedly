@@ -7,7 +7,10 @@ import { syllabusService, taskOrderScore } from "@/server/services/syllabus.serv
 import { auditLog } from "@/server/lib/audit";
 
 async function requireAuth() {
-  const session = await auth.api.getSession({ headers: await headers() });
+  const session = await auth.api.getSession({
+    headers: await headers(),
+    query: { disableCookieCache: true },
+  });
   if (!session) throw new Error("Unauthorized");
   if (!(session.user as Record<string, unknown>).isAdmin) {
     throw new Error("Forbidden: admin only");

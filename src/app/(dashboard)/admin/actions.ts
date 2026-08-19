@@ -14,7 +14,10 @@ import { syllabusService } from "@/server/services/syllabus.service";
 const PAGE_SIZE = 50;
 
 async function requireAdmin() {
-  const session = await auth.api.getSession({ headers: await headers() });
+  const session = await auth.api.getSession({
+    headers: await headers(),
+    query: { disableCookieCache: true },
+  });
   if (!session || !(session.user as Record<string, unknown>).isAdmin) {
     throw new Error("Unauthorized");
   }
@@ -34,47 +37,8 @@ async function verifyPassword(userId: string, password: string): Promise<boolean
 }
 
 export async function getAdminStats() {
-  const empty = { users: 0, schedules: 0, uploads: 0, feedback: 0 };
-  const h = await headers();
-  const cookieHeader = h.get("cookie") || "";
-  let getSessionResult: unknown = null;
-  let getSessionError: string | null = null;
-  let getSessionStack: string | null = null;
-  try {
-    getSessionResult = await auth.api.getSession({ headers: h });
-  } catch (e) {
-    getSessionError = e instanceof Error ? e.message : String(e);
-    getSessionStack = e instanceof Error ? e.stack ?? null : null;
-  }
-  const session = getSessionResult as { user?: Record<string, unknown> } | null;
-  const sessionIsAdmin = session?.user?.isAdmin ?? null;
-  const sessionUserId = session?.user?.id ?? null;
-  if (!session || sessionIsAdmin !== true) {
-    return {
-      ...empty,
-      _diag: {
-        reason: "getSession-null-or-not-admin",
-        hasCookieHeader: cookieHeader.length > 0,
-        cookieNames: cookieHeader.split(";").map((p) => p.trim().split("=")[0]),
-        getSessionResult: session ? { userId: sessionUserId, isAdmin: sessionIsAdmin } : null,
-        getSessionError,
-        getSessionStack,
-      },
-    };
-  }
-  try {
-    const stats = await adminService.getStats();
-    return { ...stats, _diag: null };
-  } catch (e) {
-    return {
-      ...empty,
-      _diag: {
-        reason: "getStats-threw",
-        error: e instanceof Error ? e.message : String(e),
-        stack: e instanceof Error ? e.stack ?? null : null,
-      },
-    };
-  }
+  await requireAdmin();
+  return adminService.getStats();
 }
 
 export async function getLimitsStatsAction() {
