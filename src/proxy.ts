@@ -3,7 +3,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { checkRateLimit } from "@/server/lib/security";
 
 const publicRoutes = ["/login", "/register", "/"];
-const publicApiRoutes = ["/api/auth", "/api/version", "/api/push", "/api/notifications", "/api/cron", "/api/admin/apk", "/api/admin/apk-download", "/api/upload", "/api/reminders/fire"];
+const publicApiRoutes = ["/api/auth", "/api/version", "/api/push", "/api/notifications", "/api/cron", "/api/admin/apk", "/api/admin/apk-download", "/api/upload", "/api/reminders/fire", "/api/integrations"];
 const verificationRoutes = ["/verify-email"];
 
 export async function proxy(request: NextRequest) {

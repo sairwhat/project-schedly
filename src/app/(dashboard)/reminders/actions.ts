@@ -50,6 +50,35 @@ export type UpdateReminderResult =
   | { success: true }
   | { success: false; error: string };
 
+export type UpdateAllReminderMinutesResult =
+  | { success: true; count: number }
+  | { success: false; error: string };
+
+/** Set the advance time (minutes before class) on every reminder the signed-in
+ *  user has. Used by the post-save "Remind Me Before Class" setup screen. */
+export async function updateAllReminderMinutes(minutes: number): Promise<UpdateAllReminderMinutesResult> {
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session) return { success: false, error: "Unauthorized" };
+
+  if (minutes < 0 || minutes > 1440 || !Number.isInteger(minutes)) {
+    return { success: false, error: "Invalid minutes" };
+  }
+
+  try {
+    const reminders = await reminderService.getByUser(session.user.id);
+    await Promise.all(
+      reminders.map((r) => reminderService.update(r.id, { minutesBefore: minutes }))
+    );
+    auditLog("reminders.update_all", { minutesBefore: minutes, count: reminders.length });
+    // Re-schedule exact-time pushes so edits take effect for the next occurrence.
+    await scheduleQstashReminders(new Date(), session.user.id).catch(() => {});
+    return { success: true, count: reminders.length };
+  } catch (err) {
+    console.error("[UPDATE_ALL_REMINDERS]", err);
+    return { success: false, error: "Failed to update reminders" };
+  }
+}
+
 export async function updateReminder(
   reminderId: string,
   data: { minutesBefore?: number; isActive?: boolean }

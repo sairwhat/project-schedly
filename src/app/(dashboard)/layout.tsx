@@ -3,6 +3,7 @@
 import { useEffect, useSyncExternalStore, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Menu, ArrowLeft } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { Capacitor } from "@capacitor/core";
 import { StatusBar, Style } from "@capacitor/status-bar";
 import { Sidebar } from "@/components/sidebar";
@@ -68,7 +69,8 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
 
   // Reset the broken-avatar flag when the session's avatar actually changes.
   useEffect(() => {
-    setAvatarError(false);
+    const id = requestAnimationFrame(() => setAvatarError(false));
+    return () => cancelAnimationFrame(id);
   }, [resolvedAvatar]);
 
   // Auto-download offline support: once signed in, warm the cache with the
@@ -284,8 +286,8 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         </button>
       )}
 
-      {/* Floating avatar / back arrow — mobile only. On desktop each page
-          header renders its own inline avatar or back arrow. */}
+      {/* Floating avatar / back arrow — mobile only, top right on every tab.
+          On desktop each page header renders its own inline avatar. */}
       {!isImmersive && showButton && !detailOpen && (
         <button
           type="button"
@@ -298,7 +300,9 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
               router.push("/profile");
             }
           }}
-          className="fixed left-4 top-[calc(env(safe-area-inset-top)+1rem)] z-50 flex h-11 w-11 items-center justify-center overflow-hidden rounded-xl bg-sidebar/90 text-sidebar-foreground shadow-[0_8px_40px_rgba(0,0,0,0.12)] transition-all duration-300 hover:bg-sidebar md:hidden"
+          className={cn(
+            "fixed left-4 top-[calc(env(safe-area-inset-top)+1rem)] z-50 flex h-11 w-11 items-center justify-center overflow-hidden rounded-full bg-sidebar/90 text-sidebar-foreground shadow-[0_8px_40px_rgba(0,0,0,0.12)] transition-all duration-300 hover:bg-sidebar md:hidden"
+          )}
           aria-label={
             isSettings || isProfile || isNotifications || isAdmin || isFeedback
               ? "Go back"

@@ -20,7 +20,10 @@ export async function getTodos() {
 
   return db.todo.findMany({
     where: { userId: session.user.id },
-    orderBy: { createdAt: "desc" },
+    orderBy: [
+      { syllabusOrder: { sort: "asc", nulls: "first" } },
+      { createdAt: "desc" },
+    ],
   });
 }
 

@@ -31,6 +31,25 @@ enum NotificationType {
   system
 }
 
+enum SyllabusTaskType {
+  assignment
+  exam
+  quiz
+  project
+  activity
+  reading
+  lab
+  presentation
+  other
+}
+
+enum SyllabusUploadStatus {
+  pending
+  processing
+  completed
+  failed
+}
+
 model User {
   id        String   @id @default(uuid())
   email         String   @unique
@@ -72,6 +91,10 @@ model User {
   pushSubscriptions PushSubscription[]
   fcmTokens        FCMToken[]
   auditLogs        AuditLog[]
+  syllabusUploads  SyllabusUpload[]
+  syllabusTasks    SyllabusTask[]
+  newsLikes        NewsLike[]
+  newsComments     NewsComment[]
 
   @@map("users")
 }
@@ -180,14 +203,15 @@ model Reminder {
 }
 
 model Todo {
-  id          String    @id @default(uuid())
-  userId      String    @map("user_id")
-  text        String
-  completed   Boolean   @default(false)
-  priority    String    @default("medium")
-  dueDate     String?   @map("due_date")
-  createdAt   DateTime  @default(now()) @map("created_at")
-  completedAt DateTime? @map("completed_at")
+  id            String    @id @default(uuid())
+  userId        String    @map("user_id")
+  text          String
+  completed     Boolean   @default(false)
+  priority      String    @default("medium")
+  dueDate       String?   @map("due_date")
+  syllabusOrder Float?    @map("syllabus_order")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  completedAt   DateTime? @map("completed_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -352,4 +376,84 @@ model LimitSnapshot {
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
 
   @@map("limit_snapshots")
+}
+
+model SyllabusUpload {
+  id           String              @id @default(uuid())
+  userId       String              @map("user_id")
+  fileUrl      String              @map("file_url")
+  objectKey    String?             @map("object_key")
+  fileName     String              @map("file_name")
+  fileSize     Int                 @map("file_size")
+  mimeType     String              @map("mime_type")
+  status       SyllabusUploadStatus @default(pending)
+  errorMessage String?             @map("error_message")
+  extractedText String?            @db.Text @map("extracted_text")
+  summary      String?             @db.Text
+  summaryLanguage String?          @map("summary_language")
+  createdAt    DateTime            @default(now()) @map("created_at")
+  updatedAt    DateTime            @updatedAt @map("updated_at")
+
+  user  User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tasks SyllabusTask[]
+
+  @@index([userId])
+  @@map("syllabus_uploads")
+}
+
+model SyllabusTask {
+  id           String           @id @default(uuid())
+  uploadId     String           @map("upload_id")
+  userId       String           @map("user_id")
+  subject      String
+  courseCode   String?          @map("course_code")
+  taskName     String           @map("task_name")
+  taskType     SyllabusTaskType @default(assignment)
+  importance   String           @default("medium")
+  dueDate      DateTime?        @map("due_date")
+  dateNote     String?          @map("date_note")
+  description  String?          @db.Text
+  instructor   String?
+  reminder     Boolean          @default(true)
+  savedToTodo  Boolean          @default(false) @map("saved_to_todo")
+  todoId       String?          @map("todo_id")
+  createdAt    DateTime         @default(now()) @map("created_at")
+  updatedAt    DateTime         @updatedAt @map("updated_at")
+
+  upload SyllabusUpload @relation(fields: [uploadId], references: [id], onDelete: Cascade)
+  user   User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([uploadId])
+  @@index([userId])
+  @@map("syllabus_tasks")
+}
+
+// Heart reactions on news articles (one like per user per article).
+model NewsLike {
+  id         String   @id @default(uuid())
+  userId     String   @map("user_id")
+  articleUrl String   @map("article_url")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, articleUrl])
+  @@index([articleUrl])
+  @@map("news_likes")
+}
+
+// Instagram-style comments on news articles.
+model NewsComment {
+  id         String   @id @default(uuid())
+  userId     String   @map("user_id")
+  articleUrl String   @map("article_url")
+  body       String   @db.Text
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([articleUrl])
+  @@index([userId])
+  @@map("news_comments")
 }

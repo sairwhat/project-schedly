@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getAdminStats, getUsers, toggleAdminRole, sendBroadcastNotification } from "./actions";
+import Link from "next/link";
+import { getAdminStats, getUsers, toggleAdminRole, sendBroadcastNotification, getSyllabusStats } from "./actions";
 import { Button } from "@/components/ui/button";
 import { FloatingLabelInput } from "@/components/ui/floating-label-input";
 import { FloatingLabelTextarea } from "@/components/ui/floating-label-textarea";
@@ -16,7 +17,7 @@ import {
   CardTitle,
   CardDescription,
 } from "@/components/ui/card";
-import { Megaphone, LayoutDashboard, Users, Radio, Globe, Smartphone, Apple, Download, type LucideIcon } from "lucide-react";
+import { Megaphone, LayoutDashboard, Users, Radio, Globe, Smartphone, Apple, Download, FileText, type LucideIcon } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { HeaderBack } from "@/components/header-back";
 import { NotificationBell } from "@/components/notification-bell";
@@ -55,13 +56,19 @@ export default function AdminPage() {
   const [broadcasting, setBroadcasting] = useState(false);
   const [broadcastResult, setBroadcastResult] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("overview");
+  const [syllabusStats, setSyllabusStats] = useState<{ totalUploads: number; totalTasks: number } | null>(null);
 
   useEffect(() => {
     async function load() {
       try {
-        const [s, u] = await Promise.all([getAdminStats(), getUsers()]);
+        const [s, u, syllabus] = await Promise.all([
+          getAdminStats(),
+          getUsers(),
+          getSyllabusStats().catch(() => null),
+        ]);
         setStats(s);
         setUsers(u as AdminUser[]);
+        setSyllabusStats(syllabus);
       } catch {
         window.location.href = "/login";
       }
@@ -235,6 +242,28 @@ export default function AdminPage() {
                   <StatCard label="Uploads" value={stats.uploads} />
                   <StatCard label="Feedback" value={stats.feedback} />
                 </div>
+              )}
+              {syllabusStats && (
+                <Card className="border-border/50">
+                  <CardHeader>
+                    <div className="flex items-center gap-2">
+                      <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
+                        <FileText className="h-4 w-4 text-primary" />
+                      </span>
+                      <CardTitle className="text-base">Syllabus Extraction</CardTitle>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-2 text-sm">
+                    <div className="flex items-center justify-between rounded-lg bg-muted/40 px-3 py-2">
+                      <span className="text-muted-foreground">Total syllabi uploaded</span>
+                      <span className="font-medium">{syllabusStats.totalUploads}</span>
+                    </div>
+                    <div className="flex items-center justify-between rounded-lg bg-muted/40 px-3 py-2">
+                      <span className="text-muted-foreground">Tasks extracted</span>
+                      <span className="font-medium">{syllabusStats.totalTasks}</span>
+                    </div>
+                  </CardContent>
+                </Card>
               )}
             </section>
           )}

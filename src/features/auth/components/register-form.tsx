@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { FloatingLabelInput } from "@/components/ui/floating-label-input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, ChevronDown } from "lucide-react";
 import {
   registerStep1Schema,
   registerStep2Schema,
@@ -226,27 +226,63 @@ export function RegisterForm() {
               <div className="space-y-3">
                 <div className="space-y-2">
                   <FloatingLabelInput
-                    label="School / University"
+                    label="School"
                     value={form.school}
                     onChange={(e) => update("school", e.target.value)}
                     autoComplete="organization"
+                    aria-invalid={!!errors.school}
                   />
+                  {errors.school && <p className="text-xs text-destructive">{errors.school}</p>}
                 </div>
                 <div className="space-y-2">
                   <FloatingLabelInput
-                    label="Course / Program"
+                    label="Course / Strand"
                     value={form.course}
                     onChange={(e) => update("course", e.target.value)}
                     autoComplete="off"
+                    aria-invalid={!!errors.course}
                   />
+                  {errors.course && <p className="text-xs text-destructive">{errors.course}</p>}
                 </div>
                 <div className="space-y-2">
-                  <FloatingLabelInput
-                    label="Year Level"
-                    value={form.year}
-                    onChange={(e) => update("year", e.target.value)}
-                    autoComplete="off"
-                  />
+                  <div className={`relative rounded-lg border bg-background transition-colors duration-150 focus-within:border-primary ${errors.year ? "border-destructive" : "border-input"}`}>
+                    <select
+                      value={form.year}
+                      onChange={(e) => update("year", e.target.value)}
+                      aria-label="Year Level"
+                      className="h-11 w-full appearance-none bg-transparent px-3 pb-1 pt-4 text-base outline-none"
+                    >
+                      <option value="" disabled hidden />
+                      <optgroup label="Junior High School (JHS)">
+                        <option value="Grade 7 (JHS)">Grade 7</option>
+                        <option value="Grade 8 (JHS)">Grade 8</option>
+                        <option value="Grade 9 (JHS)">Grade 9</option>
+                        <option value="Grade 10 (JHS)">Grade 10</option>
+                      </optgroup>
+                      <optgroup label="Senior High School (SHS)">
+                        <option value="Grade 11 (SHS)">Grade 11</option>
+                        <option value="Grade 12 (SHS)">Grade 12</option>
+                      </optgroup>
+                      <optgroup label="College">
+                        <option value="1st Year">1st Year</option>
+                        <option value="2nd Year">2nd Year</option>
+                        <option value="3rd Year">3rd Year</option>
+                        <option value="4th Year">4th Year</option>
+                        <option value="5th Year">5th Year</option>
+                      </optgroup>
+                    </select>
+                    <label
+                      className={`pointer-events-none absolute left-2.5 z-[1] origin-left bg-background px-1 leading-none text-muted-foreground transition-all duration-200 ease-out ${
+                        form.year
+                          ? "top-[8px] scale-75 text-primary"
+                          : "top-1/2 -translate-y-1/2 text-base"
+                      }`}
+                    >
+                      Year Level
+                    </label>
+                    <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  </div>
+                  {errors.year && <p className="text-xs text-destructive">{errors.year}</p>}
                 </div>
               </div>
             )}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useState, useRef } from "react";
 import { Check, Save } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { useAuth } from "@/features/auth/hooks/use-auth";
@@ -92,15 +92,12 @@ export default function ProfilePage() {
       : rawAvatar;
   const avatarUrl = imgError ? null : resolvedAvatar;
 
-  // Reset the error flag when the user uploads/previews a new photo.
-  useEffect(() => {
-    if (pendingUrl) setImgError(false);
-  }, [pendingUrl]);
-
   async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
     setUploadError(null);
+    // Reset the broken-image flag for the newly picked photo.
+    setImgError(false);
     const preview = URL.createObjectURL(file);
     setPendingUrl(preview);
     setUploading(true);

@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { ShieldCheck, UploadCloud, LifeBuoy, Gauge, ScrollText, Inbox } from "lucide-react";
 import { HeaderBack } from "@/components/header-back";
 import { NotificationBell } from "@/components/notification-bell";
+import { ClassRemindersToggle } from "@/components/class-reminders-toggle";
 
 import { Button } from "@/components/ui/button";
 import { FloatingLabelInput } from "@/components/ui/floating-label-input";
@@ -45,6 +46,13 @@ export default function SettingsPage() {
       ? (searchParams.get("tab") as string)
       : "account";
   const [activeTab, setActiveTab] = useState(initialTab);
+
+  const tabs = [
+    { id: "account", label: "Account" },
+    { id: "security", label: "Security" },
+    { id: "theme", label: "Theme" },
+    { id: "support", label: "Support" },
+  ];
 
   return (
     <div className="mx-auto max-w-4xl pt-8 md:pt-0">
@@ -108,12 +116,7 @@ export default function SettingsPage() {
       <div className="flex flex-col gap-6 md:flex-row md:items-start">
         {/* Left nav */}
         <nav className="flex shrink-0 gap-1 overflow-x-auto md:w-48 md:flex-col md:overflow-visible md:rounded-2xl md:border md:border-border/60 md:bg-card/80 md:p-2 md:backdrop-blur-sm md:sticky md:top-6">
-          {[
-            { id: "account", label: "Account" },
-            { id: "security", label: "Security" },
-            { id: "theme", label: "Theme" },
-            { id: "support", label: "Support" },
-          ].map((tab) => (
+          {tabs.map((tab) => (
             <button
               key={tab.id}
               type="button"
@@ -137,6 +140,7 @@ export default function SettingsPage() {
           {activeTab === "theme" && <ThemeCard />}
           {activeTab === "support" && (
             <div className="space-y-3">
+              <ClassRemindersToggle />
               {u?.isAdmin && (
                 <div className="space-y-3">
                   <SettingsLinkCard href="/admin" icon={<ShieldCheck className="h-4 w-4 text-primary" />} title="Admin Dashboard" description="Manage the Schedly admin panel." />

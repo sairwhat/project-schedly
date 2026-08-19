@@ -12,7 +12,8 @@ import { useAuth } from "@/features/auth/hooks/use-auth";
 // same way). Mobile hides it — the drawer + bottom nav take over.
 export function AppNavPanel() {
   const pathname = usePathname();
-  const { signOut } = useAuth();
+  const { user, signOut } = useAuth();
+  const isAdmin = Boolean((user as Record<string, unknown> | null)?.isAdmin);
 
   const pill = (isActive: boolean) =>
     cn(
@@ -24,7 +25,9 @@ export function AppNavPanel() {
 
   return (
     <nav className="hidden w-48 shrink-0 flex-col gap-1 self-start rounded-2xl border border-border/60 bg-card/80 p-2 backdrop-blur-sm md:sticky md:top-6 md:flex">
-      {mainNav.map((item) => {
+      {mainNav
+        .filter((item) => !item.adminOnly || isAdmin)
+        .map((item) => {
         const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
         return (
           <Link key={item.href} href={item.href} prefetch className={pill(isActive)}>

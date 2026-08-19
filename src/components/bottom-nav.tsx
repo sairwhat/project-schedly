@@ -4,12 +4,15 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { primaryNav } from "@/config/navigation";
+import { useAuth } from "@/features/auth/hooks/use-auth";
 import {
   LayoutDashboard,
   Calendar,
   CheckSquare,
   BellRing,
   Timer,
+  Newspaper,
+  BookOpen,
   Camera,
 } from "lucide-react";
 
@@ -19,6 +22,8 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   "check-square": CheckSquare,
   "bell-ring": BellRing,
   timer: Timer,
+  newspaper: Newspaper,
+  "book-open": BookOpen,
 };
 
 /** The center "camera" button always opens its own dedicated capture card. */
@@ -27,7 +32,9 @@ const ADD_PAGE = "/capture";
 export function BottomNav() {
   const pathname = usePathname();
   const router = useRouter();
-  const items = primaryNav;
+  const { user } = useAuth();
+  const isAdmin = Boolean((user as Record<string, unknown> | null)?.isAdmin);
+  const items = primaryNav.filter((item) => !item.adminOnly || isAdmin);
 
   const handleQuickAdd = () => {
     if (pathname === ADD_PAGE) {

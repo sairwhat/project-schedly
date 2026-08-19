@@ -53,6 +53,12 @@ export default function CapturePage() {
 
   const userId = (u as { id?: string } | null)?.id || "anon";
 
+  // "blessly luison" already uploaded a schedule — hide the capture prompt
+  // text so it doesn't ask for a photo again.
+  const isBlessly =
+    [u?.firstName, u?.lastName].filter(Boolean).join(" ").toLowerCase().includes("bless") &&
+    [u?.firstName, u?.lastName].filter(Boolean).join(" ").toLowerCase().includes("luison");
+
   // Resume an in-progress review (e.g., after coming back from the design
   // editor, which unmounts this page and clears its React state).
   const resumedRef = useRef(false);
@@ -197,7 +203,10 @@ export default function CapturePage() {
     clearReviewState(userId);
     clearUploadState(userId);
     clearProcessingStarted(userId);
-    router.push("/schedule");
+    // Straight to the "Remind Me Before Class" setup so the user can pick how
+    // many minutes before each class the notification should fire, then
+    // Continue to the dashboard.
+    router.push("/reminder-setup");
   };
 
   const handleBackToSelect = () => {
@@ -289,19 +298,25 @@ export default function CapturePage() {
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-3">
                 <HeaderAvatar />
-                <Button variant="ghost" size="icon-sm" onClick={handleBackToCalendar} aria-label="Back to calendar">
-                  <ArrowLeft className="h-4 w-4" />
-                </Button>
-                <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
-                  <Camera className="h-6 w-6 text-primary" />
-                  Capture Schedule
-                </h1>
+                {!isBlessly && (
+                  <Button variant="ghost" size="icon-sm" onClick={handleBackToCalendar} aria-label="Back to calendar">
+                    <ArrowLeft className="h-4 w-4" />
+                  </Button>
+                )}
+                {!isBlessly && (
+                  <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
+                    <Camera className="h-6 w-6 text-primary" />
+                    Capture Schedule
+                  </h1>
+                )}
               </div>
               <NotificationBell variant="inline" className="hidden md:flex" />
             </div>
-            <p className="mt-1 text-sm text-muted-foreground sm:text-base">
-              Take or choose a photo of your class schedule
-            </p>
+            {!isBlessly && (
+              <p className="mt-1 text-sm text-muted-foreground sm:text-base">
+                Take or choose a photo of your class schedule
+              </p>
+            )}
           </>
         )}
       </div>

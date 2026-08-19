@@ -13,7 +13,7 @@ const csp = [
     ? "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://challenges.cloudflare.com https://www.gstatic.com"
     : "script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com https://www.gstatic.com",
   "style-src 'self' 'unsafe-inline'",
-  `img-src 'self' data: blob: ${appUrl} https://*.vercel.app https://*.blob.vercel-storage.com https://blob.vercel-storage.com https://openweathermap.org https://*.openweathermap.org`,
+  `img-src 'self' data: blob: ${appUrl} https: http://localhost:3000 https://*.vercel.app https://*.blob.vercel-storage.com https://blob.vercel-storage.com https://openweathermap.org https://*.openweathermap.org`,
   `media-src 'self' data: blob: ${appUrl} https://*.vercel.app https://*.blob.vercel-storage.com https://blob.vercel-storage.com`,
   "font-src 'self'",
   `connect-src 'self' ${appUrl} https://*.vercel.app https://*.blob.vercel-storage.com https://blob.vercel-storage.com https://challenges.cloudflare.com https://*.googleapis.com https://*.gstatic.com https://fcm.googleapis.com`,

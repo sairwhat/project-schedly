@@ -19,6 +19,7 @@ export const AuditActions = [
   "widget.token_regenerate",
   "admin.action",
   "reminders.update",
+  "reminders.update_all",
   "reminders.cron",
   "reminders.todos",
   "reminders.qstash",
@@ -26,6 +27,8 @@ export const AuditActions = [
   "push.subscribe",
   "push.unsubscribe",
   "notification.delete",
+  "syllabus.task_saved",
+  "syllabus.tasks_saved_bulk",
 ] as const;
 
 export type AuditAction = (typeof AuditActions)[number];

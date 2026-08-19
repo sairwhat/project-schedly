@@ -87,19 +87,26 @@ export const aiService = {
       // 1. Cache lookup by perceptual image hash (skips all AI work on repeats).
       let hash: string | null = null;
       if (process.env.AI_CACHE_ENABLED !== "false") {
-        hash = await computeImageHash(imageBuffer);
-        const cached = await extractionCache.get(hash);
-        if (cached) {
-          PipelineLogger.info("cache", "Cache hit — returning stored result", {
-            runId,
-            hash,
-            model: cached.model,
-            cacheMs: Math.round(performance.now() - ct0),
-            totalMs: Math.round(performance.now() - t0),
-          });
-          return ok(cached.result as ExtractionResult);
+        try {
+          hash = await computeImageHash(imageBuffer);
+        } catch (hashErr) {
+          // Hashing is best-effort; a hash failure must never fail the upload.
+          PipelineLogger.warn("cache", "Hash computation failed — skipping cache", { runId }, hashErr);
         }
-        PipelineLogger.debug("cache", "Cache miss", { runId, hash, cacheMs: Math.round(performance.now() - ct0) });
+        if (hash) {
+          const cached = await extractionCache.get(hash);
+          if (cached) {
+            PipelineLogger.info("cache", "Cache hit — returning stored result", {
+              runId,
+              hash,
+              model: cached.model,
+              cacheMs: Math.round(performance.now() - ct0),
+              totalMs: Math.round(performance.now() - t0),
+            });
+            return ok(cached.result as ExtractionResult);
+          }
+          PipelineLogger.debug("cache", "Cache miss", { runId, hash, cacheMs: Math.round(performance.now() - ct0) });
+        }
       }
 
       // 2. Preprocess BEFORE the AI call so the model reads an auto-rotated,
@@ -122,14 +129,31 @@ export const aiService = {
         preprocessMs: Math.round(performance.now() - pt0),
       });
 
+      // Graceful degradation target: when every AI provider fails we return an
+      // EMPTY result instead of a hard failure, so the user lands on the
+      // review screen ("No classes extracted. Add one manually.") and can fill
+      // in their schedule by hand. No user ever sees a failed upload.
+      const emptyResult: ExtractionResult = {
+        semester: null,
+        classes: [],
+        metadata: { totalClasses: 0, confidence: 0, notes: "ai_unavailable" },
+      };
+
       // 3. Primary vision extraction (single pass — the common path is ONE
       // AI call). Any usable result is returned immediately; low-confidence
       // results are fixed by the user in the review screen instead of burning
       // 2-3 more slow model calls.
-      const primary = await extractScheduleFromImage(
-        imageUrl,
-        { base64: processedImage.toString("base64"), contentType: "image/jpeg" },
-      );
+      let primary: { data: Record<string, unknown>; model: string } | null = null;
+      try {
+        primary = await extractScheduleFromImage(
+          imageUrl,
+          { base64: processedImage.toString("base64"), contentType: "image/jpeg" },
+        );
+      } catch (extractErr) {
+        PipelineLogger.error("pipeline", "All AI providers failed — degrading to empty result", { runId }, extractErr);
+        await maybeCache(hash, imageBuffer, emptyResult, "fallback", runId, t0);
+        return ok(emptyResult);
+      }
       const raw = primary.data;
 
       const primaryResult = buildResult(raw);
@@ -143,7 +167,7 @@ export const aiService = {
         PipelineLogger.warn("pipeline", "Primary extraction produced no parseable data", { runId });
       }
 
-      // 2. Last resort: a single Hy3 re-validation pass when the vision model
+      // 4. Last resort: a single Hy3 re-validation pass when the vision model
       // came back with nothing usable.
       if (process.env.OPENROUTER_VALIDATION_ENABLED !== "false") {
         try {
@@ -158,11 +182,15 @@ export const aiService = {
         }
       }
 
+      // 5. Nothing usable from any provider — degrade gracefully instead of
+      // failing the upload. The review screen lets the user add classes by
+      // hand, so a bad photo or a provider outage never blocks them.
       if (primaryResult) {
         await maybeCache(hash, imageBuffer, primaryResult, primary.model, runId, t0);
         return ok(primaryResult);
       }
-      return fail("AI_PROCESSING_FAILED", "AI returned data in an unrecognized format");
+      await maybeCache(hash, imageBuffer, emptyResult, "fallback", runId, t0);
+      return ok(emptyResult);
     } catch (err) {
       const message = err instanceof Error ? err.message : "AI processing failed";
       PipelineLogger.error("pipeline", "Pipeline failed", { runId }, err);

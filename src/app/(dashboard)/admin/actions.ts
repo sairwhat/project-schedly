@@ -9,6 +9,7 @@ import { getLimitsStats } from "@/server/services/limits.service";
 import { auditRepository } from "@/server/repositories/audit.repository";
 import { feedbackRepository } from "@/server/repositories/feedback.repository";
 import type { FeedbackType } from "@/generated/prisma/client";
+import { syllabusService } from "@/server/services/syllabus.service";
 
 const PAGE_SIZE = 50;
 
@@ -40,6 +41,11 @@ export async function getAdminStats() {
 export async function getLimitsStatsAction() {
   await requireAdmin();
   return getLimitsStats();
+}
+
+export async function getSyllabusStats() {
+  await requireAdmin();
+  return syllabusService.getStats();
 }
 
 export async function getUsers() {

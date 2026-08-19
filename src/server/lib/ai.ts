@@ -21,11 +21,15 @@ const CONFIDENCE_THRESHOLD = Number(process.env.AI_CONFIDENCE_THRESHOLD ?? 0.75)
  * errors out (rate limit / outage) — not on low confidence. Keeps the common
  * path to a single AI call for fast uploads.
  *
- * Primary: Gemma 4 26B — fastest measured free vision model on OpenRouter
- * (~49s end-to-end on a real schedule photo, reliable confident output). */
+ * PRIMARY provider: Google Gemini (gemini-flash-latest) — fastest free vision
+ * model we use (~3-10s responses vs ~49s on OpenRouter's free tier) with a
+ * ~1,500 requests/day quota, so the common path stays quick.
+ *
+ * OpenRouter models below are the fallback chain, used only when Gemini is
+ * exhausted or down (OpenRouter free tier: ~50 requests/day). */
 const VISION_MODELS = [
-  "google/gemma-4-26b-a4b-it:free",                        // Primary (fast, accurate)
-  "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",    // Fallback (only on errors)
+  "google/gemma-4-26b-a4b-it:free",                        // Fallback (fast, accurate)
+  "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",    // Last resort (only on errors)
 ];
 
 /* ===== Validation/Reasoning Models =====
@@ -209,9 +213,11 @@ function parseAiResponse(data: unknown) {
 }
 
 /**
- * Google Gemini (free tier: ~1,500 requests/day, vision included) — used as
- * the PRIMARY extraction provider so the OpenRouter 50 free-requests/day cap
- * can never hard-block user uploads. OpenRouter stays as the fallback chain.
+ * Google Gemini (free tier: ~1,500 requests/day, vision included) — PRIMARY
+ * extraction provider: fastest free responses (~3-10s vs ~49s on OpenRouter's
+ * free tier) and the highest daily quota, so the common path stays quick.
+ * OpenRouter remains as the fallback chain so its 50 free-requests/day cap
+ * can never hard-block user uploads.
  */
 async function callGemini(
   parts: Record<string, unknown>[],
@@ -406,11 +412,36 @@ export async function extractScheduleFromImage(
 
   const { base64, contentType } = preloaded ?? (await fetchAndPreprocessImage(imageUrl));
 
-  // OpenRouter keys first (key 1 -> key 2 -> ... -> key N). For each key the
-  // vision models are tried in order; we only escalate to the next key after
-  // the previous one is exhausted (rate-limit / outage). When
-  // OPENROUTER_DISABLED is set, OpenRouter is skipped until its daily reset,
-  // letting its free quota rest — Gemini handles everything in between.
+  // Gemini with multi-key rotation (key 1 -> key 2 -> ... -> key N) is the
+  // PRIMARY provider: fastest responses (~3-10s) and the largest free quota
+  // (~1,500 requests/day), so the common path is a single fast call. Free
+  // tier sometimes returns transient 503 (high demand); each key is retried
+  // once. OpenRouter stays as the fallback chain so its smaller free quota
+  // (~50/day) rests unless Gemini is exhausted or down.
+  if (GEMINI_KEYS.length > 0) {
+    try {
+      const data = await runWithGeminiKeys((apiKey) =>
+        callGemini(
+          [
+            { inline_data: { mime_type: contentType, data: base64 } },
+            { text: "Extract the classes from this image exactly as the system instructions describe. Return ONLY valid JSON." },
+          ],
+          { prompt: SCHEDULE_EXTRACTION_PROMPT },
+          apiKey,
+        ),
+      );
+      PipelineLogger.info("extract", "Vision extraction complete (Gemini)", {
+        model: "gemini-flash-latest",
+      });
+      return { data, model: "gemini-flash-latest" };
+    } catch (err) {
+      PipelineLogger.error("extract", "All Gemini keys failed", {}, err);
+    }
+  }
+
+  // OpenRouter fallback (keys 1-N, models in order). When OPENROUTER_DISABLED
+  // is set, OpenRouter is skipped until its daily reset, letting its free
+  // quota rest — Gemini handles everything in between.
   let usedModel = models[0]!;
   if ((await isOpenRouterEnabled()) && OPENROUTER_KEYS.length > 0) {
     try {
@@ -443,39 +474,9 @@ export async function extractScheduleFromImage(
     } catch (err) {
       PipelineLogger.error("extract", "All OpenRouter keys failed", {}, err);
     }
-  } else {
-    PipelineLogger.info(
-      "extract",
-      OPENROUTER_KEYS.length > 0
-        ? "OpenRouter is disabled (waiting for its daily reset) — using Gemini"
-        : "No OpenRouter key configured — using Gemini",
-    );
   }
 
-  // Gemini with multi-key rotation (key 1 -> key 2 -> ... -> key N). Free tier
-  // sometimes returns transient 503 (high demand); each key is retried once.
-  if (GEMINI_KEYS.length > 0) {
-    try {
-      const data = await runWithGeminiKeys((apiKey) =>
-        callGemini(
-          [
-            { inline_data: { mime_type: contentType, data: base64 } },
-            { text: "Extract the classes from this image exactly as the system instructions describe. Return ONLY valid JSON." },
-          ],
-          { prompt: SCHEDULE_EXTRACTION_PROMPT },
-          apiKey,
-        ),
-      );
-      PipelineLogger.info("extract", "Vision extraction complete (Gemini)", {
-        model: "gemini-flash-latest",
-      });
-      return { data, model: "gemini-flash-latest" };
-    } catch (err) {
-      PipelineLogger.error("extract", "All Gemini keys failed", {}, err);
-    }
-  }
-
-  throw new Error("All AI providers failed (OpenRouter 1-N, Gemini 1-N)");
+  throw new Error("All AI providers failed (Gemini 1-N, OpenRouter 1-N)");
 }
 
 export async function validateExtractedData(extractedJson: Record<string, unknown>) {
@@ -491,8 +492,20 @@ export async function validateExtractedData(extractedJson: Record<string, unknow
     `normalize day tokens, fix impossible times, and return the same JSON schema with an "overallConfidence" field.\n\n` +
     JSON.stringify(extractedJson, null, 2);
 
-  // OpenRouter keys first (key 1 -> ... -> key N), Gemini as the very last
+  // Gemini first (fast, largest free quota), OpenRouter as the very last
   // resort — same order as vision extraction.
+  if (GEMINI_KEYS.length > 0) {
+    try {
+      const data = await runWithGeminiKeys((apiKey) => callGemini([{ text: prompt }], { prompt }, apiKey));
+      PipelineLogger.info("validate", "Re-validation complete (Gemini)", {
+        model: "gemini-flash-latest",
+      });
+      return data;
+    } catch (err) {
+      PipelineLogger.error("validate", "All Gemini keys failed", {}, err);
+    }
+  }
+
   let usedModel = models[0]!;
   if ((await isOpenRouterEnabled()) && OPENROUTER_KEYS.length > 0) {
     try {
@@ -513,28 +526,9 @@ export async function validateExtractedData(extractedJson: Record<string, unknow
     } catch (err) {
       PipelineLogger.error("validate", "All OpenRouter keys failed", {}, err);
     }
-  } else {
-    PipelineLogger.info(
-      "validate",
-      OPENROUTER_KEYS.length > 0
-        ? "OpenRouter is disabled (waiting for its daily reset) — using Gemini"
-        : "No OpenRouter key configured — using Gemini",
-    );
   }
 
-  if (GEMINI_KEYS.length > 0) {
-    try {
-      const data = await runWithGeminiKeys((apiKey) => callGemini([{ text: prompt }], { prompt }, apiKey));
-      PipelineLogger.info("validate", "Re-validation complete (Gemini)", {
-        model: "gemini-flash-latest",
-      });
-      return data;
-    } catch (err) {
-      PipelineLogger.error("validate", "All Gemini keys failed", {}, err);
-    }
-  }
-
-  throw new Error("All AI providers failed (OpenRouter 1-N, Gemini 1-N)");
+  throw new Error("All AI providers failed (Gemini 1-N, OpenRouter 1-N)");
 }
 
 /* ----------------------------------------------------------------------
@@ -577,8 +571,15 @@ export async function generateScheduleSuggestions(
   const fullText = `${SUGGESTIONS_PROMPT}\n\nWeekly schedule:\n${JSON.stringify(classes, null, 2)}`;
   let data: Record<string, unknown>;
 
-  if ((await isOpenRouterEnabled()) && OPENROUTER_KEYS.length > 0) {
+  // Gemini first (fast, largest free quota), OpenRouter as fallback.
+  if (GEMINI_KEYS.length > 0) {
     try {
+      data = await runWithGeminiKeys((apiKey) =>
+        callGemini([{ text: fullText }], { prompt: SUGGESTIONS_PROMPT, temperature: 0.9 }, apiKey),
+      );
+    } catch (err) {
+      PipelineLogger.error("suggest", "Gemini failed", {}, err);
+      if ((await isOpenRouterEnabled()) && OPENROUTER_KEYS.length === 0) return [];
       data = await runWithOpenRouterKeys(
         (model, apiKey) =>
           callOpenRouter(
@@ -589,16 +590,17 @@ export async function generateScheduleSuggestions(
           ).then(parseAiResponse),
         models,
       );
-    } catch (err) {
-      PipelineLogger.error("suggest", "OpenRouter failed", {}, err);
-      if (GEMINI_KEYS.length === 0) return [];
-      data = await runWithGeminiKeys((apiKey) =>
-        callGemini([{ text: fullText }], { prompt: SUGGESTIONS_PROMPT, temperature: 0.9 }, apiKey),
-      );
     }
-  } else if (GEMINI_KEYS.length > 0) {
-    data = await runWithGeminiKeys((apiKey) =>
-      callGemini([{ text: fullText }], { prompt: SUGGESTIONS_PROMPT, temperature: 0.9 }, apiKey),
+  } else if ((await isOpenRouterEnabled()) && OPENROUTER_KEYS.length > 0) {
+    data = await runWithOpenRouterKeys(
+      (model, apiKey) =>
+        callOpenRouter(
+          model,
+          [{ role: "user", content: fullText }],
+          0.9,
+          apiKey,
+        ).then(parseAiResponse),
+      models,
     );
   } else {
     return [];
@@ -775,3 +777,303 @@ export function validateSchedule(data: Record<string, unknown>): ValidationResul
 }
 
 export { VISION_MODELS, VALIDATION_MODELS, CONFIDENCE_THRESHOLD };
+
+/* ----------------------------------------------------------------------
+   Syllabus Extraction
+   ---------------------------------------------------------------------- */
+
+const SYLLABUS_EXTRACTION_PROMPT = `You are an academic syllabus parser. Extract ALL requirements, activities, and important dates from this syllabus.
+
+For EACH task/requirement found, extract:
+- subject: the full course/subject name (e.g. "Programming 2", "IT Fundamentals")
+- courseCode: the course code if shown (e.g. "CS102", "IT101"). null if not visible.
+- taskName: the specific task name (e.g. "Programming Project 1", "Midterm Exam", "Lab Activity 3")
+- taskType: one of "assignment", "exam", "quiz", "project", "activity", "reading", "lab", "presentation", "other"
+- importance: how important this task is for the student's grade. Use "high" for major graded requirements (exams, major projects, capstones, major papers). Use "medium" for quizzes, assignments, and graded activities. Use "low" for minor items (attendance, participation, extra credit, ungraded readings). Be smart — do NOT mark everything high.
+- dueDate: ONLY if an EXACT calendar date is explicitly written (e.g. "August 25", "Sept 15", "09/15/2026"). Use "YYYY-MM-DD" format. If the syllabus says "Week 3", "during midterms", "TBA", or any vague/relative reference — set dueDate to null.
+- dateNote: If dueDate is null, write the original text as-is (e.g. "Week 3", "During midterms", "TBA", "Week 5-8"). This preserves the context so the user can set the real date. null if dueDate has an exact date.
+- description: any additional details, instructions, or context about the task (max 500 chars). null if none.
+- instructor: instructor/professor name if mentioned anywhere in the syllabus. null if not.
+
+CRITICAL RULES:
+1. DO NOT invent, estimate, or guess dates. If the syllabus says "Week 5", do NOT convert it to a calendar date. Set dueDate=null and dateNote="Week 5".
+2. ONLY set dueDate when an EXACT date is written (e.g. "August 25", "September 15, 2026").
+3. Extract EVERY requirement: assignments, projects, quizzes, exams, lab activities, presentations, readings, participation requirements, grading deadlines.
+4. If a task has multiple parts (e.g. "Project Part 1", "Project Part 2"), create SEPARATE entries for each.
+5. If the image is not a syllabus, return {"tasks": [], "metadata": {"confidence": 0, "notes": "not_a_syllabus"}}.
+
+Return ONLY valid JSON:
+{
+  "tasks": [
+    {"subject": "IT Fundamentals", "courseCode": "IT101", "taskName": "Quiz 1", "taskType": "quiz", "importance": "medium", "dueDate": null, "dateNote": "Week 3", "description": null, "instructor": "Prof. Reyes"},
+    {"subject": "IT Fundamentals", "courseCode": "IT101", "taskName": "Laboratory Activity 1", "taskType": "lab", "importance": "medium", "dueDate": "2026-08-28", "dateNote": null, "description": "Chapter 1 hands-on exercise", "instructor": "Prof. Reyes"},
+    {"subject": "IT Fundamentals", "courseCode": "IT101", "taskName": "Midterm Examination", "taskType": "exam", "importance": "high", "dueDate": "2026-09-15", "dateNote": null, "description": "Covers weeks 1-8", "instructor": "Prof. Reyes"},
+    {"subject": "Programming 2", "courseCode": "CS102", "taskName": "Programming Project", "taskType": "project", "importance": "high", "dueDate": "2026-10-20", "dateNote": null, "description": "Group project — CRUD application", "instructor": "Prof. Santos"}
+  ],
+  "metadata": {
+    "totalTasks": 4,
+    "confidence": 0.95,
+    "notes": null
+  }
+}`;
+
+export interface SyllabusExtractResult {
+  data: Record<string, unknown>;
+  model: string;
+}
+
+export async function extractSyllabusFromImage(
+  imageUrl: string,
+  preloaded?: { base64: string; contentType: string },
+): Promise<SyllabusExtractResult> {
+  const configuredModel = process.env.OPENROUTER_MODEL;
+  const models = configuredModel
+    ? [configuredModel, ...VISION_MODELS.filter((m) => m !== configuredModel)]
+    : VISION_MODELS;
+
+  PipelineLogger.info("syllabus-extract", "Starting syllabus extraction", { models });
+
+  const { base64, contentType } = preloaded ?? (await fetchAndPreprocessImage(imageUrl));
+
+  // Gemini first (fast, largest free quota); OpenRouter as fallback.
+  if (GEMINI_KEYS.length > 0) {
+    try {
+      const data = await runWithGeminiKeys((apiKey) =>
+        callGemini(
+          [
+            { inline_data: { mime_type: contentType, data: base64 } },
+            { text: "Extract all tasks from this syllabus exactly as the system instructions describe. Return ONLY valid JSON." },
+          ],
+          { prompt: SYLLABUS_EXTRACTION_PROMPT },
+          apiKey,
+        ),
+      );
+      PipelineLogger.info("syllabus-extract", "Syllabus extraction complete (Gemini)", {
+        model: "gemini-flash-latest",
+      });
+      return { data, model: "gemini-flash-latest" };
+    } catch (err) {
+      PipelineLogger.error("syllabus-extract", "All Gemini keys failed", {}, err);
+    }
+  }
+
+  let usedModel = models[0]!;
+  if ((await isOpenRouterEnabled()) && OPENROUTER_KEYS.length > 0) {
+    try {
+      const data = await runWithOpenRouterKeys(
+        (model, apiKey) => {
+          usedModel = model;
+          return callOpenRouter(
+            model,
+            [
+              {
+                role: "user",
+                content: [
+                  { type: "text", text: SYLLABUS_EXTRACTION_PROMPT },
+                  {
+                    type: "image_url",
+                    image_url: { url: `data:${contentType};base64,${base64}` },
+                  },
+                ],
+              },
+            ],
+            0.1,
+            apiKey,
+          ).then(parseAiResponse);
+        },
+        models,
+      );
+
+      PipelineLogger.info("syllabus-extract", "Syllabus extraction complete (OpenRouter)", { model: usedModel });
+      return { data, model: usedModel };
+    } catch (err) {
+      PipelineLogger.error("syllabus-extract", "All OpenRouter keys failed", {}, err);
+    }
+  }
+
+  throw new Error("All AI providers failed (Gemini 1-N, OpenRouter 1-N)");
+}
+
+/* ----------------------------------------------------------------------
+   Syllabus Extraction — Text (for PDFs where we extracted text)
+   ---------------------------------------------------------------------- */
+
+export async function extractSyllabusFromText(
+  pdfText: string,
+): Promise<SyllabusExtractResult> {
+  const configuredModel = process.env.OPENROUTER_MODEL;
+  const models = configuredModel
+    ? [configuredModel, ...VISION_MODELS.filter((m) => m !== configuredModel)]
+    : VISION_MODELS;
+
+  PipelineLogger.info("syllabus-extract-text", "Starting syllabus extraction from PDF text", { models });
+
+  const truncatedText = pdfText.slice(0, 15000);
+
+  // Gemini first (fast, largest free quota); OpenRouter as fallback.
+  if (GEMINI_KEYS.length > 0) {
+    try {
+      const data = await runWithGeminiKeys((apiKey) =>
+        callGemini(
+          [
+            { text: `Extract all tasks from this syllabus exactly as the system instructions describe. Return ONLY valid JSON.\n\n---\n\n${truncatedText}` },
+          ],
+          { prompt: SYLLABUS_EXTRACTION_PROMPT },
+          apiKey,
+        ).then(parseAiResponse)
+      );
+
+      PipelineLogger.info("syllabus-extract-text", "Syllabus extraction complete (Gemini)", {
+        model: "gemini-flash-latest",
+      });
+      return { data, model: "gemini-flash-latest" };
+    } catch (err) {
+      PipelineLogger.error("syllabus-extract-text", "All Gemini keys failed", {}, err);
+    }
+  }
+
+  let usedModel = models[0]!;
+  if ((await isOpenRouterEnabled()) && OPENROUTER_KEYS.length > 0) {
+    try {
+      const data = await runWithOpenRouterKeys(
+        (model, apiKey) => {
+          usedModel = model;
+          return callOpenRouter(
+            model,
+            [
+              {
+                role: "user",
+                content: `${SYLLABUS_EXTRACTION_PROMPT}\n\n---\n\nHere is the extracted text from a syllabus PDF:\n\n${truncatedText}`,
+              },
+            ],
+            0.1,
+            apiKey,
+          ).then(parseAiResponse);
+        },
+        models,
+      );
+
+      PipelineLogger.info("syllabus-extract-text", "Syllabus extraction complete (OpenRouter)", { model: usedModel });
+      return { data, model: usedModel };
+    } catch (err) {
+      PipelineLogger.error("syllabus-extract-text", "All OpenRouter keys failed", {}, err);
+    }
+  }
+
+  throw new Error("All AI providers failed (Gemini 1-N, OpenRouter 1-N)");
+}
+
+/* ----------------------------------------------------------------------
+   Syllabus Summary
+   ---------------------------------------------------------------------- */
+
+const SYLLABUS_SUMMARY_PROMPT = (language: "english" | "tagalog") => {
+  const langInstruction =
+    language === "tagalog"
+      ? "Write the summary in TAGALOG (Filipino) — natural, easy to understand, and using simple Taglish where it helps (e.g. 'exam', 'project', 'deadline' are fine in English)."
+      : "Write the summary in clear, natural ENGLISH.";
+  return `You are writing a friendly, human-sounding summary of a course syllabus. Do NOT sound like an AI — no "Here is a summary", no "In summary", no AI phrasing. Sound like a real person (the app's team) talking directly to the student who will read this.
+
+${langInstruction}
+
+Write in SECOND PERSON ("you" / "kayo"), as if directly talking to the student. Keep it warm, simple, and useful (150-300 words).
+
+Structure the summary with these THREE sections in this exact order, each introduced by a short plain-text header line (in the summary language) followed by 1-2 flowing sentences:
+1. About the course — what it is and its overall goal
+2. Requirements — the main requirements the student must complete (exams, projects, quizzes, performances, activities)
+3. Grading scheme — the breakdown and weight percentages if mentioned
+4. Tips para maging successful — practical advice on how to succeed, in a supportive tone
+
+CRITICAL FORMATTING RULES:
+- PLAIN TEXT ONLY. NO markdown, NO asterisks (*), NO bullet points, NO dashes (-), NO numbered lists, NO bold, NO emojis.
+- Section headers are plain words only (e.g. "About the Course", "Requirements", "Grading Scheme", "Tips para maging Successful") — no symbols, no punctuation after.
+- After each header, write short flowing sentences, never lists.
+- Use natural connecting words ("Una", "Bukod dito", "Para", "Tandaan", "Take note", "Also", "Don't forget").
+- Do NOT invent details that are not in the syllabus.
+
+Return ONLY valid JSON: {"summary": "<your full summary here>"}`;
+};
+
+export async function summarizeSyllabus(
+  source: { type: "text"; text: string } | { type: "image"; imageUrl: string },
+  language: "english" | "tagalog",
+): Promise<{ summary: string; model: string }> {
+  const configuredModel = process.env.OPENROUTER_MODEL;
+  const models = configuredModel
+    ? [configuredModel, ...VISION_MODELS.filter((m) => m !== configuredModel)]
+    : VISION_MODELS;
+
+  PipelineLogger.info("syllabus-summarize", "Starting syllabus summary", { language });
+
+  let imagePart: { base64: string; contentType: string } | null = null;
+  let text = "";
+  if (source.type === "image") {
+    imagePart = await fetchAndPreprocessImage(source.imageUrl);
+  } else {
+    text = source.text.slice(0, 15000);
+  }
+
+  const prompt = SYLLABUS_SUMMARY_PROMPT(language);
+  const userContent = imagePart
+    ? [
+        { type: "text", text: prompt },
+        {
+          type: "image_url",
+          image_url: { url: `data:${imagePart.contentType};base64,${imagePart.base64}` },
+        },
+      ]
+    : `${prompt}\n\n---\n\nHere is the syllabus content:\n\n${text}`;
+
+  const extractSummary = (data: Record<string, unknown>): string => {
+    const summary = data.summary;
+    if (typeof summary !== "string" || !summary.trim()) {
+      throw new Error("No summary in AI response");
+    }
+    return summary.trim();
+  };
+
+  let usedModel = models[0]!;
+  // Gemini first (fast, largest free quota); OpenRouter as fallback.
+  if (GEMINI_KEYS.length > 0) {
+    try {
+      const data = await runWithGeminiKeys((apiKey) =>
+        callGemini(
+          imagePart
+            ? [
+                { inline_data: { mime_type: imagePart.contentType, data: imagePart.base64 } },
+                { text: prompt },
+              ]
+            : [{ text: `${prompt}\n\n---\n\n${text}` }],
+          { prompt: "" },
+          apiKey,
+        ).then(parseAiResponse),
+      );
+      PipelineLogger.info("syllabus-summarize", "Summary complete (Gemini)", {
+        model: "gemini-flash-latest",
+      });
+      return { summary: extractSummary(data), model: "gemini-flash-latest" };
+    } catch (err) {
+      PipelineLogger.error("syllabus-summarize", "All Gemini keys failed", {}, err);
+    }
+  }
+
+  if ((await isOpenRouterEnabled()) && OPENROUTER_KEYS.length > 0) {
+    try {
+      const data = await runWithOpenRouterKeys(
+        (model, apiKey) => {
+          usedModel = model;
+          return callOpenRouter(model, [{ role: "user", content: userContent }], 0.3, apiKey).then(
+            parseAiResponse,
+          );
+        },
+        models,
+      );
+      PipelineLogger.info("syllabus-summarize", "Summary complete (OpenRouter)", { model: usedModel });
+      return { summary: extractSummary(data), model: usedModel };
+    } catch (err) {
+      PipelineLogger.error("syllabus-summarize", "All OpenRouter keys failed", {}, err);
+    }
+  }
+
+  throw new Error("All AI providers failed (Gemini 1-N, OpenRouter 1-N)");
+}

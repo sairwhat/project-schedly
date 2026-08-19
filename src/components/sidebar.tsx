@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useSyncExternalStore } from "react";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { navGroups, type NavItem } from "@/config/navigation";
+import { navGroups, primaryNav, type NavGroup, type NavItem } from "@/config/navigation";
 import { useAuth } from "@/features/auth/hooks/use-auth";
 import { ThemePicker } from "@/components/theme-picker";
 import {
@@ -26,6 +26,8 @@ import {
   User,
   Settings,
   LogOut,
+  BookOpen,
+  Newspaper,
 } from "lucide-react";
 
 const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -45,6 +47,8 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   info: Info,
   user: User,
   settings: Settings,
+  "book-open": BookOpen,
+  newspaper: Newspaper,
 };
 
 function NavItemLink({ item, onNavigate }: { item: NavItem; onNavigate?: () => void }) {
@@ -112,11 +116,11 @@ export function Sidebar({ onClose }: { onClose?: () => void }) {
   const pathname = usePathname();
   const isSettings = pathname === "/settings";
 
-  // On mobile the primary destinations live in the Bottom Navigation,
-  // so the drawer only shows secondary tools/account items.
-  const visibleGroups = isDesktop
-    ? navGroups
-    : navGroups.filter((g) => g.title !== "Main");
+  // On desktop the drawer is the only navigation, so the primary destinations
+  // (Dashboard, Calendar, To-Do, Pomodoro) are added back. On mobile they live
+  // in the Bottom Nav, so the drawer shows only the Tools group.
+  const mainGroup: NavGroup = { title: "Main", items: primaryNav };
+  const visibleGroups = isDesktop ? [mainGroup, ...navGroups] : navGroups;
 
   return (
     <aside className="flex h-full w-full flex-col overflow-hidden rounded-3xl bg-sidebar/95 shadow-[0_8px_40px_rgba(0,0,0,0.12)]">

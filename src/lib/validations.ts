@@ -29,9 +29,9 @@ const step1Schema = z.object({
 });
 
 const step2Schema = z.object({
-  school: z.string().optional(),
-  course: z.string().optional(),
-  year: z.string().optional(),
+  school: z.string().min(1, "School is required"),
+  course: z.string().min(1, "Course / strand is required"),
+  year: z.string().min(1, "Year level is required"),
 });
 
 const step3Schema = z
