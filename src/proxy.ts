@@ -5,17 +5,32 @@ const publicRoutes = ["/login", "/register", "/"];
 const publicApiRoutes = ["/api/auth", "/api/version", "/api/push", "/api/notifications", "/api/cron", "/api/admin/apk", "/api/admin/apk-download", "/api/upload", "/api/reminders/fire", "/api/integrations"];
 const verificationRoutes = ["/verify-email"];
 
-const SESSION_COOKIE_NAME =
-  process.env.NODE_ENV === "production" ? "__Host-schedly-session" : "schedly-session";
+// Cookie names better-auth actually sets. The app's auth.ts config uses a
+// camelCase key (`sessionToken`) but better-auth looks up `cookies["session_token"]`
+// (snake_case), so the custom `__Host-schedly-session` / `schedly-session` name is
+// never applied. In production the real cookie is `__Secure-better-auth.session_token`.
+// Check the full set so this keeps working whether or not that config is fixed later.
+const SESSION_COOKIE_NAMES = [
+  "__Secure-better-auth.session_token",
+  "better-auth.session_token",
+  "__Secure-better-auth-session_token",
+  "better-auth-session_token",
+  "__Secure-__Host-schedly-session",
+  "__Host-schedly-session",
+  "__Secure-schedly-session",
+  "schedly-session",
+];
 
 function getSessionCookieFromRequest(request: NextRequest): string | null {
   const cookieHeader = request.headers.get("cookie");
   if (!cookieHeader) return null;
-  const marker = `${SESSION_COOKIE_NAME}=`;
-  for (const part of cookieHeader.split(";")) {
-    const trimmed = part.trim();
-    if (trimmed.startsWith(marker)) {
-      return trimmed.slice(marker.length);
+  for (const name of SESSION_COOKIE_NAMES) {
+    const marker = `${name}=`;
+    for (const part of cookieHeader.split(";")) {
+      const trimmed = part.trim();
+      if (trimmed.startsWith(marker)) {
+        return trimmed.slice(marker.length);
+      }
     }
   }
   return null;
