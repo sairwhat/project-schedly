@@ -33,6 +33,38 @@ async function verifyPassword(userId: string, password: string): Promise<boolean
   return bcrypt.compare(password, accounts.password);
 }
 
+export async function debugSessionAction() {
+  try {
+    const h = await headers();
+    const cookieHeader = h.get("cookie") || "";
+    let session = null;
+    let error: string | null = null;
+    let stack: string | null = null;
+    try {
+      session = await auth.api.getSession({ headers: h });
+    } catch (e) {
+      error = e instanceof Error ? e.message : String(e);
+      stack = e instanceof Error ? e.stack ?? null : null;
+    }
+    return {
+      ok: true,
+      hasCookieHeader: cookieHeader.length > 0,
+      cookieNames: cookieHeader.split(";").map((p) => p.trim().split("=")[0]),
+      hasSession: !!session,
+      sessionUserId: session?.user?.id ?? null,
+      sessionIsAdmin: (session?.user as Record<string, unknown> | undefined)?.isAdmin ?? null,
+      error: error ?? null,
+      stack: stack ?? null,
+    };
+  } catch (e) {
+    return {
+      ok: false,
+      outerError: e instanceof Error ? e.message : String(e),
+      outerStack: e instanceof Error ? e.stack : undefined,
+    };
+  }
+}
+
 export async function getAdminStats() {
   await requireAdmin();
   return adminService.getStats();
