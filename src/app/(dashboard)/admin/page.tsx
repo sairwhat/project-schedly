@@ -66,7 +66,7 @@ export default function AdminPage() {
           getUsers(),
           getSyllabusStats(),
         ]);
-        if (s.status === "fulfilled") setStats(s.value);
+        if (s.status === "fulfilled") setStats((s.value as unknown) as { users: number; schedules: number; uploads: number; feedback: number } | null);
         if (u.status === "fulfilled") setUsers(u.value as AdminUser[]);
         if (syllabus.status === "fulfilled") setSyllabusStats(syllabus.value);
         if (s.status === "rejected" && u.status === "rejected") {

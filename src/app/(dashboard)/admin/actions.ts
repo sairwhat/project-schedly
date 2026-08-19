@@ -44,7 +44,7 @@ export async function getAdminStats() {
     h = await headers();
     cookieHeader = h.get("cookie") || "";
   } catch (e) {
-    return { ...empty, _debug: btoa(JSON.stringify({ step: "headers-threw", error: e instanceof Error ? e.message : String(e) })) };
+    return "DIAG:headers-threw:" + (e instanceof Error ? e.message : String(e));
   }
   try {
     getSessionResult = await auth.api.getSession({ 
@@ -59,31 +59,26 @@ export async function getAdminStats() {
   const sessionIsAdmin = session?.user?.isAdmin ?? null;
   const sessionUserId = session?.user?.id ?? null;
   if (!session || sessionIsAdmin !== true) {
-    return {
-      ...empty,
-      _debug: btoa(JSON.stringify({
-        step: "getSession-null-or-not-admin",
-        hasCookie: cookieHeader.length > 0,
-        cookieLen: cookieHeader.length,
-        cookieNames: cookieHeader.split(";").map(p => p.trim().split("=")[0]),
-        getSessionResult: session ? { userId: sessionUserId, isAdmin: sessionIsAdmin } : null,
-        getSessionError,
-        getSessionStack: getSessionStack?.split("\n").slice(0, 3).join("\n"),
-      })),
+    const diag = {
+      step: "getSession-null-or-not-admin",
+      hasCookie: cookieHeader.length > 0,
+      cookieLen: cookieHeader.length,
+      cookieNames: cookieHeader.split(";").map(p => p.trim().split("=")[0]),
+      getSessionResult: session ? { userId: sessionUserId, isAdmin: sessionIsAdmin } : null,
+      getSessionError,
+      getSessionStack: getSessionStack?.split("\n").slice(0, 3).join("\n"),
     };
+    return "DIAG:" + JSON.stringify(diag);
   }
   try {
     const stats = await adminService.getStats();
-    return { ...stats, _debug: null };
+    return "OK:" + JSON.stringify(stats);
   } catch (e) {
-    return {
-      ...empty,
-      _debug: btoa(JSON.stringify({
-        step: "getStats-threw",
-        error: e instanceof Error ? e.message : String(e),
-        stack: e instanceof Error ? (e.stack ?? "").split("\n").slice(0, 3).join("\n") : null,
-      })),
-    };
+    return "DIAG:error:" + JSON.stringify({
+      step: "getStats-threw",
+      error: e instanceof Error ? e.message : String(e),
+      stack: e instanceof Error ? (e.stack ?? "").split("\n").slice(0, 3).join("\n") : null,
+    });
   }
 }
 
