@@ -14,14 +14,62 @@ import { syllabusService } from "@/server/services/syllabus.service";
 const PAGE_SIZE = 50;
 
 async function requireAdmin() {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-    query: { disableCookieCache: true },
-  });
+  const session = await auth.api.getSession({ headers: await headers() });
   if (!session || !(session.user as Record<string, unknown>).isAdmin) {
     throw new Error("Unauthorized");
   }
   return session;
+}
+
+export async function getAdminStats() {
+  const empty = { users: 0, schedules: 0, uploads: 0, feedback: 0 };
+  let h: Awaited<ReturnType<typeof headers>> | null = null;
+  let cookieHeader = "";
+  let getSessionResult: unknown = null;
+  let getSessionError: string | null = null;
+  let getSessionStack: string | null = null;
+  try {
+    h = await headers();
+    cookieHeader = h.get("cookie") || "";
+  } catch (e) {
+    return { ...empty, _debug: btoa(JSON.stringify({ step: "headers-threw", error: e instanceof Error ? e.message : String(e) })) };
+  }
+  try {
+    getSessionResult = await auth.api.getSession({ headers: h });
+  } catch (e) {
+    getSessionError = e instanceof Error ? e.message : String(e);
+    getSessionStack = e instanceof Error ? e.stack ?? null : null;
+  }
+  const session = getSessionResult as { user?: Record<string, unknown> } | null;
+  const sessionIsAdmin = session?.user?.isAdmin ?? null;
+  const sessionUserId = session?.user?.id ?? null;
+  if (!session || sessionIsAdmin !== true) {
+    return {
+      ...empty,
+      _debug: btoa(JSON.stringify({
+        step: "getSession-null-or-not-admin",
+        hasCookie: cookieHeader.length > 0,
+        cookieLen: cookieHeader.length,
+        cookieNames: cookieHeader.split(";").map(p => p.trim().split("=")[0]),
+        getSessionResult: session ? { userId: sessionUserId, isAdmin: sessionIsAdmin } : null,
+        getSessionError,
+        getSessionStack: getSessionStack?.split("\n").slice(0, 3).join("\n"),
+      })),
+    };
+  }
+  try {
+    const stats = await adminService.getStats();
+    return { ...stats, _debug: null };
+  } catch (e) {
+    return {
+      ...empty,
+      _debug: btoa(JSON.stringify({
+        step: "getStats-threw",
+        error: e instanceof Error ? e.message : String(e),
+        stack: e instanceof Error ? (e.stack ?? "").split("\n").slice(0, 3).join("\n") : null,
+      })),
+    };
+  }
 }
 
 async function verifyPassword(userId: string, password: string): Promise<boolean> {
@@ -34,11 +82,6 @@ async function verifyPassword(userId: string, password: string): Promise<boolean
   });
   if (!accounts?.password) return false;
   return bcrypt.compare(password, accounts.password);
-}
-
-export async function getAdminStats() {
-  await requireAdmin();
-  return adminService.getStats();
 }
 
 export async function getLimitsStatsAction() {
