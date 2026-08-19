@@ -1,10 +1,25 @@
-import { getSessionCookie } from "better-auth/cookies";
 import { type NextRequest, NextResponse } from "next/server";
 import { checkRateLimit } from "@/server/lib/security";
 
 const publicRoutes = ["/login", "/register", "/"];
 const publicApiRoutes = ["/api/auth", "/api/version", "/api/push", "/api/notifications", "/api/cron", "/api/admin/apk", "/api/admin/apk-download", "/api/upload", "/api/reminders/fire", "/api/integrations"];
 const verificationRoutes = ["/verify-email"];
+
+const SESSION_COOKIE_NAME =
+  process.env.NODE_ENV === "production" ? "__Host-schedly-session" : "schedly-session";
+
+function getSessionCookieFromRequest(request: NextRequest): string | null {
+  const cookieHeader = request.headers.get("cookie");
+  if (!cookieHeader) return null;
+  const marker = `${SESSION_COOKIE_NAME}=`;
+  for (const part of cookieHeader.split(";")) {
+    const trimmed = part.trim();
+    if (trimmed.startsWith(marker)) {
+      return trimmed.slice(marker.length);
+    }
+  }
+  return null;
+}
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -27,7 +42,7 @@ export async function proxy(request: NextRequest) {
   const isVerification = verificationRoutes.some((route) => pathname.startsWith(route));
   const isPublic = publicRoutes.some((route) => pathname === route || pathname.startsWith(route + "/"));
 
-  const sessionCookie = getSessionCookie(request);
+  const sessionCookie = getSessionCookieFromRequest(request);
 
   if (!sessionCookie && !isPublic && !isVerification) {
     return NextResponse.redirect(new URL("/login", request.url));

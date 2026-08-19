@@ -9,15 +9,23 @@ export default async function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  const isAdmin = Boolean(
-    (session?.user as Record<string, unknown> | null)?.isAdmin
-  );
+  try {
+    const session = await auth.api.getSession({ headers: await headers() });
+    const isAdmin = Boolean(
+      (session?.user as Record<string, unknown> | null)?.isAdmin
+    );
 
-  if (!isAdmin) {
+    if (!isAdmin) {
+      return (
+        <div className="mx-auto max-w-3xl p-6 text-center text-sm text-muted-foreground">
+          Admin access required.
+        </div>
+      );
+    }
+  } catch {
     return (
       <div className="mx-auto max-w-3xl p-6 text-center text-sm text-muted-foreground">
-        Admin access required.
+        Please log in to access the admin dashboard.
       </div>
     );
   }

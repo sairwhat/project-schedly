@@ -61,16 +61,23 @@ export default function AdminPage() {
   useEffect(() => {
     async function load() {
       try {
-        const [s, u, syllabus] = await Promise.all([
+        const [s, u, syllabus] = await Promise.allSettled([
           getAdminStats(),
           getUsers(),
-          getSyllabusStats().catch(() => null),
+          getSyllabusStats(),
         ]);
-        setStats(s);
-        setUsers(u as AdminUser[]);
-        setSyllabusStats(syllabus);
+        if (s.status === "fulfilled") setStats(s.value);
+        if (u.status === "fulfilled") setUsers(u.value as AdminUser[]);
+        if (syllabus.status === "fulfilled") setSyllabusStats(syllabus.value);
+        if (s.status === "rejected" && u.status === "rejected") {
+          toast.error("Session expired. Please log in again.");
+          window.location.href = "/login";
+          return;
+        }
       } catch {
+        toast.error("Session expired. Please log in again.");
         window.location.href = "/login";
+        return;
       }
       setLoading(false);
     }
