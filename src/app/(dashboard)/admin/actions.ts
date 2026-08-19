@@ -33,41 +33,48 @@ async function verifyPassword(userId: string, password: string): Promise<boolean
   return bcrypt.compare(password, accounts.password);
 }
 
-export async function debugSessionAction() {
+export async function getAdminStats() {
+  const empty = { users: 0, schedules: 0, uploads: 0, feedback: 0 };
+  const h = await headers();
+  const cookieHeader = h.get("cookie") || "";
+  let getSessionResult: unknown = null;
+  let getSessionError: string | null = null;
+  let getSessionStack: string | null = null;
   try {
-    const h = await headers();
-    const cookieHeader = h.get("cookie") || "";
-    let session = null;
-    let error: string | null = null;
-    let stack: string | null = null;
-    try {
-      session = await auth.api.getSession({ headers: h });
-    } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
-      stack = e instanceof Error ? e.stack ?? null : null;
-    }
-    return {
-      ok: true,
-      hasCookieHeader: cookieHeader.length > 0,
-      cookieNames: cookieHeader.split(";").map((p) => p.trim().split("=")[0]),
-      hasSession: !!session,
-      sessionUserId: session?.user?.id ?? null,
-      sessionIsAdmin: (session?.user as Record<string, unknown> | undefined)?.isAdmin ?? null,
-      error: error ?? null,
-      stack: stack ?? null,
-    };
+    getSessionResult = await auth.api.getSession({ headers: h });
   } catch (e) {
+    getSessionError = e instanceof Error ? e.message : String(e);
+    getSessionStack = e instanceof Error ? e.stack ?? null : null;
+  }
+  const session = getSessionResult as { user?: Record<string, unknown> } | null;
+  const sessionIsAdmin = session?.user?.isAdmin ?? null;
+  const sessionUserId = session?.user?.id ?? null;
+  if (!session || sessionIsAdmin !== true) {
     return {
-      ok: false,
-      outerError: e instanceof Error ? e.message : String(e),
-      outerStack: e instanceof Error ? e.stack : undefined,
+      ...empty,
+      _diag: {
+        reason: "getSession-null-or-not-admin",
+        hasCookieHeader: cookieHeader.length > 0,
+        cookieNames: cookieHeader.split(";").map((p) => p.trim().split("=")[0]),
+        getSessionResult: session ? { userId: sessionUserId, isAdmin: sessionIsAdmin } : null,
+        getSessionError,
+        getSessionStack,
+      },
     };
   }
-}
-
-export async function getAdminStats() {
-  await requireAdmin();
-  return adminService.getStats();
+  try {
+    const stats = await adminService.getStats();
+    return { ...stats, _diag: null };
+  } catch (e) {
+    return {
+      ...empty,
+      _diag: {
+        reason: "getStats-threw",
+        error: e instanceof Error ? e.message : String(e),
+        stack: e instanceof Error ? e.stack ?? null : null,
+      },
+    };
+  }
 }
 
 export async function getLimitsStatsAction() {
