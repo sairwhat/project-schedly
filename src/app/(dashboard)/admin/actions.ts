@@ -47,7 +47,10 @@ export async function getAdminStats() {
     return { ...empty, _debug: btoa(JSON.stringify({ step: "headers-threw", error: e instanceof Error ? e.message : String(e) })) };
   }
   try {
-    getSessionResult = await auth.api.getSession({ headers: h });
+    getSessionResult = await auth.api.getSession({ 
+      headers: h,
+      query: { disableCookieCache: true },
+    });
   } catch (e) {
     getSessionError = e instanceof Error ? e.message : String(e);
     getSessionStack = e instanceof Error ? e.stack ?? null : null;
