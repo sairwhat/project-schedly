@@ -221,7 +221,7 @@ export default function SyllabusPage() {
         startPolling(processing.id);
       }
     } catch {
-      toast.error("Failed to load syllabus data");
+      setUploads([]);
     } finally {
       setLoading(false);
     }

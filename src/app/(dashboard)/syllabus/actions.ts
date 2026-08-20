@@ -6,7 +6,6 @@ async function requireAuth() {
   const { auth } = await import("@/server/lib/auth");
   const session = await auth.api.getSession({
     headers: await headers(),
-    query: { disableCookieCache: true },
   });
   if (!session) throw new Error("Unauthorized");
   return session;
