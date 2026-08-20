@@ -12,7 +12,6 @@ import type { FeedbackType } from "@/generated/prisma/client";
 import { syllabusService } from "@/server/services/syllabus.service";
 
 const PAGE_SIZE = 50;
-
 async function requireAdmin() {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session || !(session.user as Record<string, unknown>).isAdmin) {
@@ -21,77 +20,9 @@ async function requireAdmin() {
   return session;
 }
 
-export async function testCookieEcho() {
-  let h: Awaited<ReturnType<typeof headers>> | null = null;
-  let cookieHeader = "";
-  try {
-    h = await headers();
-    cookieHeader = h.get("cookie") || "";
-  } catch (e) {
-    return { ok: false, error: "headers threw: " + (e instanceof Error ? e.message : String(e)) };
-  }
-  return { ok: true, cookieLen: cookieHeader.length, cookieNames: cookieHeader.split(";").map(p => p.trim().split("=")[0]) };
-}
-
-export async function testCookieEcho() {
-  let h: Awaited<ReturnType<typeof headers>> | null = null;
-  let cookieHeader = "";
-  try {
-    h = await headers();
-    cookieHeader = h.get("cookie") || "";
-  } catch (e) {
-    return "DIAG:headers-threw:" + (e instanceof Error ? e.message : String(e));
-  }
-  return "DIAG:cookie-len:" + cookieHeader.length + ":names:" + cookieHeader.split(";").map(p => p.trim().split("=")[0]).join(",");
-}
-
 export async function getAdminStats() {
-  const empty = { users: 0, schedules: 0, uploads: 0, feedback: 0 };
-  let h: Awaited<ReturnType<typeof headers>> | null = null;
-  let cookieHeader = "";
-  let getSessionResult: unknown = null;
-  let getSessionError: string | null = null;
-  let getSessionStack: string | null = null;
-  try {
-    h = await headers();
-    cookieHeader = h.get("cookie") || "";
-  } catch (e) {
-    return "DIAG:headers-threw:" + (e instanceof Error ? e.message : String(e));
-  }
-  try {
-    getSessionResult = await auth.api.getSession({ 
-      headers: h,
-      query: { disableCookieCache: true },
-    });
-  } catch (e) {
-    getSessionError = e instanceof Error ? e.message : String(e);
-    getSessionStack = e instanceof Error ? e.stack ?? null : null;
-  }
-  const session = getSessionResult as { user?: Record<string, unknown> } | null;
-  const sessionIsAdmin = session?.user?.isAdmin ?? null;
-  const sessionUserId = session?.user?.id ?? null;
-  if (!session || sessionIsAdmin !== true) {
-    const diag = {
-      step: "getSession-null-or-not-admin",
-      hasCookie: cookieHeader.length > 0,
-      cookieLen: cookieHeader.length,
-      cookieNames: cookieHeader.split(";").map(p => p.trim().split("=")[0]),
-      getSessionResult: session ? { userId: sessionUserId, isAdmin: sessionIsAdmin } : null,
-      getSessionError,
-      getSessionStack: getSessionStack?.split("\n").slice(0, 3).join("\n"),
-    };
-    return "DIAG:" + JSON.stringify(diag);
-  }
-  try {
-    const stats = await adminService.getStats();
-    return "OK:" + JSON.stringify(stats);
-  } catch (e) {
-    return "DIAG:error:" + JSON.stringify({
-      step: "getStats-threw",
-      error: e instanceof Error ? e.message : String(e),
-      stack: e instanceof Error ? (e.stack ?? "").split("\n").slice(0, 3).join("\n") : null,
-    });
-  }
+  await requireAdmin();
+  return adminService.getStats();
 }
 
 async function verifyPassword(userId: string, password: string): Promise<boolean> {
