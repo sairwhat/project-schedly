@@ -19,7 +19,7 @@
 // page's onMessage handler, background/closed-app messages land here. We
 // render the notification ourselves so display never depends on browser
 // auto-handling of a `notification` field.
-const CACHE_NAME = "schedly-cache-v4";
+const CACHE_NAME = "schedly-cache-v5";
 const RSC_CACHE = `${CACHE_NAME}-rsc`;
 
 // External images (avatars, weather icons) are fetched with no-cors so they
