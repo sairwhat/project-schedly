@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { getAdminStats, getUsers, toggleAdminRole, sendBroadcastNotification, getSyllabusStats } from "./actions";
-import { debugGetSessionDirect } from "./debug-actions";
+import { debugPing } from "./debug-actions";
 import { Button } from "@/components/ui/button";
 import { FloatingLabelInput } from "@/components/ui/floating-label-input";
 import { FloatingLabelTextarea } from "@/components/ui/floating-label-textarea";
@@ -66,9 +66,9 @@ export default function AdminPage() {
           getAdminStats(),
           getUsers(),
           getSyllabusStats(),
-          debugGetSessionDirect(),
+          debugPing(),
         ]);
-        if (debug.status === "fulfilled") console.log("[admin-debug]", JSON.stringify(debug.value));
+        if (debug.status === "fulfilled") console.log("[admin-debug]", debug.value);
         if (s.status === "fulfilled") setStats(s.value);
         if (u.status === "fulfilled") setUsers(u.value as AdminUser[]);
         if (syllabus.status === "fulfilled") setSyllabusStats(syllabus.value);
