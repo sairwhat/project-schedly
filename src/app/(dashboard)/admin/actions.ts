@@ -33,6 +33,18 @@ export async function testCookieEcho() {
   return { ok: true, cookieLen: cookieHeader.length, cookieNames: cookieHeader.split(";").map(p => p.trim().split("=")[0]) };
 }
 
+export async function testCookieEcho() {
+  let h: Awaited<ReturnType<typeof headers>> | null = null;
+  let cookieHeader = "";
+  try {
+    h = await headers();
+    cookieHeader = h.get("cookie") || "";
+  } catch (e) {
+    return "DIAG:headers-threw:" + (e instanceof Error ? e.message : String(e));
+  }
+  return "DIAG:cookie-len:" + cookieHeader.length + ":names:" + cookieHeader.split(";").map(p => p.trim().split("=")[0]).join(",");
+}
+
 export async function getAdminStats() {
   const empty = { users: 0, schedules: 0, uploads: 0, feedback: 0 };
   let h: Awaited<ReturnType<typeof headers>> | null = null;
