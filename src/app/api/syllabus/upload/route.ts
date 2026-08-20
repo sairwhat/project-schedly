@@ -75,7 +75,7 @@ export async function POST(request: NextRequest) {
       buffer,
       detectedMime,
       file.name,
-      { folder: "syllabi", status: "processing" }
+      { folder: "syllabi", status: "processing", dbFallback: true }
     );
 
     const upload = await syllabusService.createUpload(session.user.id, {
