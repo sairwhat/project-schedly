@@ -9,9 +9,6 @@ async function requireAuth() {
     query: { disableCookieCache: true },
   });
   if (!session) throw new Error("Unauthorized");
-  if (!(session.user as Record<string, unknown>).isAdmin) {
-    throw new Error("Forbidden: admin only");
-  }
   return session;
 }
 
