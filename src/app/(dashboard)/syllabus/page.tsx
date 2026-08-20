@@ -228,9 +228,9 @@ export default function SyllabusPage() {
   }, []);
 
   useEffect(() => {
-    if (!isAdmin) return;
+    if (authLoading) return;
     loadData();
-  }, [isAdmin, loadData]);
+  }, [authLoading, loadData]);
 
   useEffect(() => {
     return () => {
