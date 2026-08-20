@@ -1,18 +1,9 @@
 "use server";
 
-import { auth } from "@/server/lib/auth";
 import { headers } from "next/headers";
-import { adminService } from "@/server/services/admin.service";
-import { auditLog } from "@/server/lib/audit";
-import { db } from "@/server/db/client";
-import { getLimitsStats } from "@/server/services/limits.service";
-import { auditRepository } from "@/server/repositories/audit.repository";
-import { feedbackRepository } from "@/server/repositories/feedback.repository";
-import type { FeedbackType } from "@/generated/prisma/client";
-import { syllabusService } from "@/server/services/syllabus.service";
 
-const PAGE_SIZE = 50;
 async function requireAdmin() {
+  const { auth } = await import("@/server/lib/auth");
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session || !(session.user as Record<string, unknown>).isAdmin) {
     throw new Error("Unauthorized");
@@ -22,10 +13,12 @@ async function requireAdmin() {
 
 export async function getAdminStats() {
   await requireAdmin();
+  const { adminService } = await import("@/server/services/admin.service");
   return adminService.getStats();
 }
 
 async function verifyPassword(userId: string, password: string): Promise<boolean> {
+  const { db } = await import("@/server/db/client");
   const user = await db.user.findUnique({ where: { id: userId }, select: { email: true } });
   if (!user) return false;
   const bcrypt = await import("bcryptjs");
@@ -39,16 +32,19 @@ async function verifyPassword(userId: string, password: string): Promise<boolean
 
 export async function getLimitsStatsAction() {
   await requireAdmin();
+  const { getLimitsStats } = await import("@/server/services/limits.service");
   return getLimitsStats();
 }
 
 export async function getSyllabusStats() {
   await requireAdmin();
+  const { syllabusService } = await import("@/server/services/syllabus.service");
   return syllabusService.getStats();
 }
 
 export async function getUsers() {
   await requireAdmin();
+  const { adminService } = await import("@/server/services/admin.service");
   return adminService.getUsers();
 }
 
@@ -56,7 +52,9 @@ export async function toggleAdminRole(userId: string, password: string) {
   const session = await requireAdmin();
   const valid = await verifyPassword(session.user.id, password);
   if (!valid) throw new Error("Invalid password. Re-authentication required.");
+  const { adminService } = await import("@/server/services/admin.service");
   const result = await adminService.toggleAdmin(userId, session.user.id);
+  const { auditLog } = await import("@/server/lib/audit");
   auditLog("user.admin_toggle", { targetUserId: userId, callerId: session.user.id });
   return result;
 }
@@ -71,12 +69,14 @@ export async function sendBroadcastNotification(opts: {
   const message = opts.message.trim().slice(0, 500);
   if (!message) throw new Error("Message is required.");
 
+  const { adminService } = await import("@/server/services/admin.service");
   const result = await adminService.broadcastNotification({
     title,
     message,
     targetUserId: opts.targetUserId || undefined,
   });
 
+  const { auditLog } = await import("@/server/lib/audit");
   auditLog("admin.action", {
     action: "notification.broadcast",
     callerId: session.user.id,
@@ -95,6 +95,8 @@ export async function getAuditLogs(opts: {
   cursor?: string;
 }) {
   await requireAdmin();
+  const PAGE_SIZE = 50;
+  const { auditRepository } = await import("@/server/repositories/audit.repository");
   const limit = PAGE_SIZE;
   const logs = await auditRepository.findMany({
     action: opts.action || undefined,
@@ -107,6 +109,7 @@ export async function getAuditLogs(opts: {
 
 export async function getAuditActions() {
   await requireAdmin();
+  const { auditRepository } = await import("@/server/repositories/audit.repository");
   return auditRepository.distinctActions();
 }
 
@@ -116,10 +119,12 @@ export async function getAdminFeedback(opts: {
   cursor?: string;
 }) {
   await requireAdmin();
+  const PAGE_SIZE = 50;
+  const { feedbackRepository } = await import("@/server/repositories/feedback.repository");
   const limit = PAGE_SIZE;
   const feedback = await feedbackRepository.findAll({
     status: opts.status || undefined,
-    type: (opts.type as FeedbackType | undefined) || undefined,
+    type: (opts.type as never) || undefined,
     limit,
     cursor: opts.cursor,
   });
@@ -132,6 +137,8 @@ export async function updateFeedbackStatus(id: string, status: string) {
   if (status !== "open" && status !== "resolved") {
     throw new Error("Invalid status.");
   }
+  const { feedbackRepository } = await import("@/server/repositories/feedback.repository");
+  const { auditLog } = await import("@/server/lib/audit");
   const feedback = await feedbackRepository.updateStatus(id, status);
   auditLog("feedback.status_update", {
     callerId: session.user.id,
