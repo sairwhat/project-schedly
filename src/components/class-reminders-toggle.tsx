@@ -54,8 +54,8 @@ function Toggle({
 
 /** Troubleshooting steps shown in the dialog when enabling class reminders
  *  (push subscription) fails on this device. */
-function buildPushHelpSteps(code: PushErrorCode): string[] {
-  if (isIosPwa()) {
+function buildPushHelpSteps(code: PushErrorCode, iosPwa: boolean): string[] {
+  if (iosPwa) {
     return [
       "Make sure Schedly was installed from your Home Screen — push alerts don't work in Safari tabs.",
       "Open iOS Settings → Schedly → Notifications and allow alerts.",
@@ -85,11 +85,21 @@ export function ClassRemindersToggle() {
   const [pushMessage, setPushMessage] = useState<{ kind: "error"; text: string } | null>(null);
   const [pushHelpOpen, setPushHelpOpen] = useState(false);
   const [pushHelp, setPushHelp] = useState<{ reason: string; steps: string[] } | null>(null);
+  const [pushSupported, setPushSupported] = useState(false);
+  const [unsupportedReasons, setUnsupportedReasons] = useState<string[]>([]);
+  const [iosPwa, setIosPwa] = useState(false);
+
+  // Check push support on mount (client-side only)
+  useEffect(() => {
+    setPushSupported(isPushSupported());
+    setUnsupportedReasons(pushUnsupportedReasons());
+    setIosPwa(isIosPwa());
+  }, []);
 
   // Restore push subscription state — defaults to OFF unless this device is
   // actually subscribed through the current VAPID key.
   useEffect(() => {
-    if (!isPushSupported()) return;
+    if (!pushSupported) return;
     let active = true;
     getPushState()
       .then((s) => {
@@ -103,7 +113,7 @@ export function ClassRemindersToggle() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [pushSupported]);
 
   const togglePush = async () => {
     if (pushUpdating) return;
@@ -121,7 +131,7 @@ export function ClassRemindersToggle() {
         else {
           if (result.code === "NOTIFICATION_PERMISSION_DENIED") setPushBlocked(true);
           setPushMessage({ kind: "error", text: result.reason });
-          setPushHelp({ reason: result.reason, steps: buildPushHelpSteps(result.code) });
+          setPushHelp({ reason: result.reason, steps: buildPushHelpSteps(result.code, iosPwa) });
           setPushHelpOpen(true);
         }
       }
@@ -161,13 +171,13 @@ export function ClassRemindersToggle() {
             <p className="text-xs text-muted-foreground">
               {pushEnabled
                 ? "You'll get a push alert before every class."
-                : isPushSupported()
+                : pushSupported
                   ? "Get a push alert before every class."
                   : "Push isn't supported on this browser."}
             </p>
-            {!pushEnabled && !isPushSupported() && (
+            {!pushEnabled && !pushSupported && (
               <p className="mt-1 text-[11px] text-destructive">
-                {pushUnsupportedReasons().join(" · ")}
+                {unsupportedReasons.join(" · ")}
               </p>
             )}
           </div>
@@ -175,7 +185,7 @@ export function ClassRemindersToggle() {
         <Toggle
           checked={pushEnabled}
           onChange={togglePush}
-          disabled={pushUpdating || !isPushSupported()}
+          disabled={pushUpdating || !pushSupported}
           label="Toggle class reminders"
         />
       </div>
@@ -190,7 +200,7 @@ export function ClassRemindersToggle() {
       {pushBlocked && !pushEnabled && (
         <p className="flex items-start gap-1.5 rounded-xl border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-600 dark:text-amber-500">
           <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-          {isIosPwa()
+          {iosPwa
             ? "Notifications are blocked in iOS Settings. Go to Settings → Schedly → Notifications and allow them, then toggle this back on."
             : "Notifications are blocked in your browser or device settings. Allow Schedly to send notifications there, then toggle this back on."}
         </p>
