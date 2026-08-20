@@ -20,20 +20,13 @@ export async function debugGetSessionDirect() {
       error = e instanceof Error ? e.message : String(e);
     }
 
-    return {
-      ok: true,
-      cookieLen: cookieHeader.length,
-      cookieNames: cookieHeader.split(";").map(p => p.trim().split("=")[0]),
-      sessionFound: result !== null,
-      userId: result ? (result as { user?: Record<string, unknown> })?.user?.id : null,
-      isAdmin: result ? (result as { user?: Record<string, unknown> })?.user?.isAdmin : null,
-      error,
-    };
+    const session = result as { user?: Record<string, unknown> } | null;
+    const userId = session?.user?.id ?? "none";
+    const isAdmin = session?.user?.isAdmin ?? "none";
+    const found = result !== null;
+
+    return `OK cookieLen=${cookieHeader.length} found=${found} userId=${userId} isAdmin=${isAdmin} error=${error}`;
   } catch (e: unknown) {
-    return {
-      ok: false,
-      outerError: e instanceof Error ? e.message : String(e),
-      outerStack: e instanceof Error ? e.stack?.split("\n").slice(0, 3).join("\n") : null,
-    };
+    return `OUTER err=${e instanceof Error ? e.message : String(e)}`;
   }
 }
