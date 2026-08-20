@@ -87,8 +87,13 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const cookieStore = await cookies();
-  const initialThemeId = cookieStore.get("schedly-theme")?.value;
+  let initialThemeId: string | undefined;
+  try {
+    const cookieStore = await cookies();
+    initialThemeId = cookieStore.get("schedly-theme")?.value;
+  } catch {
+    initialThemeId = undefined;
+  }
 
   return (
     <html
