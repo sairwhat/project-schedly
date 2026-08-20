@@ -1,12 +1,9 @@
 "use server";
 
 import { headers } from "next/headers";
-import { auth } from "@/server/lib/auth";
-import { db } from "@/server/db/client";
-import { syllabusService, taskOrderScore } from "@/server/services/syllabus.service";
-import { auditLog } from "@/server/lib/audit";
 
 async function requireAuth() {
+  const { auth } = await import("@/server/lib/auth");
   const session = await auth.api.getSession({
     headers: await headers(),
     query: { disableCookieCache: true },
@@ -20,11 +17,13 @@ async function requireAuth() {
 
 export async function getSyllabusUploads() {
   const session = await requireAuth();
+  const { syllabusService } = await import("@/server/services/syllabus.service");
   return syllabusService.getUploadsByUser(session.user.id);
 }
 
 export async function getSyllabusTasks() {
   const session = await requireAuth();
+  const { syllabusService } = await import("@/server/services/syllabus.service");
   return syllabusService.getTasksByUser(session.user.id);
 }
 
@@ -45,16 +44,21 @@ export async function updateSyllabusTask(
 ) {
   const session = await requireAuth();
   const dueDate = data.dueDate ? new Date(data.dueDate) : data.dueDate === null ? null : undefined;
+  const { syllabusService } = await import("@/server/services/syllabus.service");
   return syllabusService.updateTask(taskId, { ...data, dueDate });
 }
 
 export async function deleteSyllabusTask(taskId: string) {
   const session = await requireAuth();
+  const { syllabusService } = await import("@/server/services/syllabus.service");
   return syllabusService.deleteTask(taskId);
 }
 
 export async function saveSyllabusTaskToTodo(taskId: string) {
   const session = await requireAuth();
+  const { db } = await import("@/server/db/client");
+  const { syllabusService, taskOrderScore } = await import("@/server/services/syllabus.service");
+  const { auditLog } = await import("@/server/lib/audit");
 
   const task = await db.syllabusTask.findFirst({
     where: { id: taskId, userId: session.user.id },
@@ -97,6 +101,9 @@ export async function saveSyllabusTaskToTodo(taskId: string) {
 
 export async function saveAllSyllabusTasks(uploadId: string) {
   const session = await requireAuth();
+  const { db } = await import("@/server/db/client");
+  const { syllabusService, taskOrderScore } = await import("@/server/services/syllabus.service");
+  const { auditLog } = await import("@/server/lib/audit");
 
   // Only save IMPORTANT tasks (high/medium) to the To-Do list — the AI marks
   // minor items (attendance, participation, ungraded readings) as "low".
@@ -148,6 +155,8 @@ export async function saveAllSyllabusTasks(uploadId: string) {
 
 export async function deleteSyllabusUpload(uploadId: string) {
   const session = await requireAuth();
+  const { db } = await import("@/server/db/client");
+  const { syllabusService } = await import("@/server/services/syllabus.service");
   const upload = await db.syllabusUpload.findFirst({
     where: { id: uploadId, userId: session.user.id },
   });
@@ -160,6 +169,8 @@ export async function summarizeSyllabusAction(
   language: "english" | "tagalog"
 ) {
   const session = await requireAuth();
+  const { db } = await import("@/server/db/client");
+  const { syllabusService } = await import("@/server/services/syllabus.service");
   const upload = await db.syllabusUpload.findFirst({
     where: { id: uploadId, userId: session.user.id },
   });

@@ -1,14 +1,14 @@
 "use server";
 
 import { headers } from "next/headers";
-import { auth } from "@/server/lib/auth";
-import { db } from "@/server/db/client";
+
 import {
   categoryOf,
   type NewsCategory,
 } from "@/lib/news-categories";
 
 async function requireAdmin() {
+  const { auth } = await import("@/server/lib/auth");
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session || !(session.user as Record<string, unknown>).isAdmin) {
     throw new Error("Forbidden: admin only");
@@ -17,6 +17,7 @@ async function requireAdmin() {
 }
 
 async function requireUser() {
+  const { auth } = await import("@/server/lib/auth");
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) throw new Error("Unauthorized");
   return session;
@@ -753,6 +754,7 @@ export async function getNews(
 export async function toggleNewsLike(
   articleUrl: string
 ): Promise<{ liked: boolean; likeCount: number }> {
+  const { db } = await import("@/server/db/client");
   const session = await requireUser();
   const existing = await db.newsLike.findUnique({
     where: { userId_articleUrl: { userId: session.user.id, articleUrl } },
@@ -777,6 +779,7 @@ export interface NewsCommentItem {
 }
 
 export async function getNewsComments(articleUrl: string): Promise<NewsCommentItem[]> {
+  const { db } = await import("@/server/db/client");
   await requireUser();
   const comments = await db.newsComment.findMany({
     where: { articleUrl },
@@ -802,6 +805,7 @@ export async function addNewsComment(
   articleUrl: string,
   body: string
 ): Promise<{ comment: NewsCommentItem; commentCount: number }> {
+  const { db } = await import("@/server/db/client");
   const session = await requireUser();
   const clean = body.trim().slice(0, 500);
   if (!clean) throw new Error("Comment cannot be empty");

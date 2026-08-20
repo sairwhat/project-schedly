@@ -1,14 +1,10 @@
 "use server";
 
 import { headers } from "next/headers";
-import { auth } from "@/server/lib/auth";
-import { reminderService } from "@/server/services/reminder.service";
-import { auditLog } from "@/server/lib/audit";
-import { scheduleQstashReminders } from "@/server/services/qstash-reminder.service";
-import { dispatchDueReminders } from "@/server/services/reminder-dispatcher.service";
-import { dispatchTodoDeadlines } from "@/server/services/todo-deadline-reminder.service";
 
 export async function getUserReminders() {
+  const { auth } = await import("@/server/lib/auth");
+  const { reminderService } = await import("@/server/services/reminder.service");
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) return [];
   return reminderService.getByUser(session.user.id);
@@ -17,6 +13,8 @@ export async function getUserReminders() {
 /** Re-schedule exact-time QStash reminders for the signed-in user. Called
  *  after reminder edits and from the app shell (throttled client-side). */
 export async function scheduleUpcomingReminders() {
+  const { auth } = await import("@/server/lib/auth");
+  const { scheduleQstashReminders } = await import("@/server/services/qstash-reminder.service");
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) return { ok: false };
   try {
@@ -34,6 +32,9 @@ export async function scheduleUpcomingReminders() {
  *  daily cron remains the safety net for when it's closed). Delivery is
  *  deduped via lastSentAt/lastStartSentAt, so polling every minute is safe. */
 export async function dispatchUserReminders() {
+  const { auth } = await import("@/server/lib/auth");
+  const { dispatchDueReminders } = await import("@/server/services/reminder-dispatcher.service");
+  const { dispatchTodoDeadlines } = await import("@/server/services/todo-deadline-reminder.service");
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) return { ok: false };
   try {
@@ -57,6 +58,10 @@ export type UpdateAllReminderMinutesResult =
 /** Set the advance time (minutes before class) on every reminder the signed-in
  *  user has. Used by the post-save "Remind Me Before Class" setup screen. */
 export async function updateAllReminderMinutes(minutes: number): Promise<UpdateAllReminderMinutesResult> {
+  const { auth } = await import("@/server/lib/auth");
+  const { reminderService } = await import("@/server/services/reminder.service");
+  const { auditLog } = await import("@/server/lib/audit");
+  const { scheduleQstashReminders } = await import("@/server/services/qstash-reminder.service");
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) return { success: false, error: "Unauthorized" };
 
@@ -83,6 +88,10 @@ export async function updateReminder(
   reminderId: string,
   data: { minutesBefore?: number; isActive?: boolean }
 ): Promise<UpdateReminderResult> {
+  const { auth } = await import("@/server/lib/auth");
+  const { reminderService } = await import("@/server/services/reminder.service");
+  const { auditLog } = await import("@/server/lib/audit");
+  const { scheduleQstashReminders } = await import("@/server/services/qstash-reminder.service");
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) return { success: false, error: "Unauthorized" };
 

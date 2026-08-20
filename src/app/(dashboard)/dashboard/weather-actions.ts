@@ -1,9 +1,6 @@
 "use server";
 
-import { auth } from "@/server/lib/auth";
 import { headers } from "next/headers";
-import { checkRateLimitDb } from "@/server/lib/security";
-import { db } from "@/server/db/client";
 
 const WEATHER_MAX = 30;
 const WEATHER_WINDOW_MS = 60 * 60 * 1000;
@@ -158,6 +155,9 @@ export async function getWeatherByCoords(
   lat: number,
   lon: number
 ): Promise<WeatherResult> {
+  const { auth } = await import("@/server/lib/auth");
+  const { checkRateLimitDb } = await import("@/server/lib/security");
+
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) return { success: false, error: "Unauthorized" };
 
@@ -263,6 +263,10 @@ async function locateByCity(city: string, apiKey?: string): Promise<{ lat: numbe
 // IP-based fallback — approximate location from the CLIENT's IP (taken from the
 // request headers), used when the browser denies geolocation permission.
 export async function getWeatherByIp(): Promise<WeatherResult> {
+  const { auth } = await import("@/server/lib/auth");
+  const { checkRateLimitDb } = await import("@/server/lib/security");
+  const { db } = await import("@/server/db/client");
+
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) return { success: false, error: "Unauthorized" };
 

@@ -1,7 +1,5 @@
 "use server";
 
-import { auth } from "@/server/lib/auth";
-import { db } from "@/server/db/client";
 import { headers } from "next/headers";
 
 export type PermissionState = {
@@ -14,6 +12,9 @@ export type PermissionState = {
  *  This is a fallback for restore — the real browser APIs are the source of
  *  truth for whether permissions are actually granted. */
 export async function getPermissionState(): Promise<PermissionState> {
+  const { auth } = await import("@/server/lib/auth");
+  const { db } = await import("@/server/db/client");
+  
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session?.user?.id) return null;
 
@@ -36,6 +37,9 @@ export async function updatePermissionState(input: {
   locationEnabled?: boolean;
   timezone?: string;
 }): Promise<{ ok: boolean }> {
+  const { auth } = await import("@/server/lib/auth");
+  const { db } = await import("@/server/db/client");
+  
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session?.user?.id) return { ok: false };
 

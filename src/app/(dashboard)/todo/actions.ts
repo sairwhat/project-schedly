@@ -1,9 +1,6 @@
 "use server";
 
 import { headers } from "next/headers";
-import { auth } from "@/server/lib/auth";
-import { db } from "@/server/db/client";
-import { auditLog } from "@/server/lib/audit";
 
 export type TodoPriority = "low" | "medium" | "high";
 
@@ -15,6 +12,8 @@ function isPriority(value: string): value is TodoPriority {
 }
 
 export async function getTodos() {
+  const { auth } = await import("@/server/lib/auth");
+  const { db } = await import("@/server/db/client");
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) return [];
 
@@ -36,6 +35,8 @@ export async function addTodoAction(
   priority: string,
   dueDate?: string
 ): Promise<AddTodoResult> {
+  const { auth } = await import("@/server/lib/auth");
+  const { db } = await import("@/server/db/client");
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) return { success: false, error: "Unauthorized" };
 
@@ -62,6 +63,8 @@ export async function addTodoAction(
 }
 
 export async function toggleTodoAction(todoId: string): Promise<{ success: boolean }> {
+  const { auth } = await import("@/server/lib/auth");
+  const { db } = await import("@/server/db/client");
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) return { success: false };
 
@@ -87,6 +90,8 @@ export async function editTodoAction(
   priority: string,
   dueDate?: string
 ): Promise<EditTodoResult> {
+  const { auth } = await import("@/server/lib/auth");
+  const { db } = await import("@/server/db/client");
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) return { success: false, error: "Unauthorized" };
 
@@ -111,6 +116,8 @@ export async function editTodoAction(
 }
 
 export async function deleteTodoAction(todoId: string): Promise<{ success: boolean }> {
+  const { auth } = await import("@/server/lib/auth");
+  const { db } = await import("@/server/db/client");
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) return { success: false };
 
@@ -124,6 +131,9 @@ export async function deleteTodoAction(todoId: string): Promise<{ success: boole
 }
 
 export async function clearCompletedAction(): Promise<{ success: boolean }> {
+  const { auth } = await import("@/server/lib/auth");
+  const { db } = await import("@/server/db/client");
+  const { auditLog } = await import("@/server/lib/audit");
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) return { success: false };
 

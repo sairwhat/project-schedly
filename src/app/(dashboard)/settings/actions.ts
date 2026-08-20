@@ -1,13 +1,11 @@
 "use server";
 
-import { auth } from "@/server/lib/auth";
-import { db } from "@/server/db/client";
 import { headers } from "next/headers";
-import { detectImageMime } from "@/server/lib/security";
-import { storeImage, deleteStoredFileByUrl } from "@/server/services/file-store.service";
-import { auditLog } from "@/server/lib/audit";
 
 export async function uploadAvatar(formData: FormData): Promise<{ url: string } | { error: string }> {
+  const { auth } = await import("@/server/lib/auth");
+  const { detectImageMime } = await import("@/server/lib/security");
+  const { storeImage } = await import("@/server/services/file-store.service");
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session?.user?.id) {
     return { error: "Unauthorized" };
@@ -64,6 +62,8 @@ export async function uploadAvatar(formData: FormData): Promise<{ url: string } 
 }
 
 export async function removeAvatar(): Promise<{ ok: true } | { error: string }> {
+  const { auth } = await import("@/server/lib/auth");
+  const { deleteStoredFileByUrl } = await import("@/server/services/file-store.service");
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session?.user?.id) {
     return { error: "Unauthorized" };
@@ -86,6 +86,9 @@ export async function removeAvatar(): Promise<{ ok: true } | { error: string }> 
 }
 
 export async function deleteAccount(username: string): Promise<{ ok: true } | { error: string }> {
+  const { auth } = await import("@/server/lib/auth");
+  const { auditLog } = await import("@/server/lib/audit");
+  const { db } = await import("@/server/db/client");
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session?.user?.id) {
     return { error: "Unauthorized" };

@@ -1,13 +1,6 @@
 "use server";
 
-import { auth } from "@/server/lib/auth";
 import { headers } from "next/headers";
-import { scheduleService, DEFAULT_COLORS } from "@/server/services/schedule.service";
-import { notificationService } from "@/server/services/notification.service";
-import { saveScheduleSchema } from "@/server/validators/ai.schema";
-import { db } from "@/server/db/client";
-import { scheduleQstashReminders } from "@/server/services/qstash-reminder.service";
-import { auditLog } from "@/server/lib/audit";
 import { generateShortName } from "@/lib/abbreviations";
 import type { DayOfWeek } from "@/generated/prisma/client";
 
@@ -16,6 +9,12 @@ export type SaveScheduleResult =
   | { success: false; error: string; fieldErrors?: Record<string, string[]> };
 
 export async function saveSchedule(data: unknown): Promise<SaveScheduleResult> {
+  const { auth } = await import("@/server/lib/auth");
+  const { saveScheduleSchema } = await import("@/server/validators/ai.schema");
+  const { scheduleService } = await import("@/server/services/schedule.service");
+  const { notificationService } = await import("@/server/services/notification.service");
+  const { auditLog } = await import("@/server/lib/audit");
+
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) return { success: false, error: "Unauthorized" };
 
@@ -47,6 +46,10 @@ export async function saveSchedule(data: unknown): Promise<SaveScheduleResult> {
 }
 
 export async function deleteSchedule(scheduleId: string): Promise<{ success: boolean; error?: string }> {
+  const { auth } = await import("@/server/lib/auth");
+  const { scheduleService } = await import("@/server/services/schedule.service");
+  const { auditLog } = await import("@/server/lib/audit");
+
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) return { success: false, error: "Unauthorized" };
 
@@ -62,6 +65,9 @@ export async function deleteSchedule(scheduleId: string): Promise<{ success: boo
 }
 
 export async function getSchedule(scheduleId: string) {
+  const { auth } = await import("@/server/lib/auth");
+  const { scheduleService } = await import("@/server/services/schedule.service");
+
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) return null;
 
@@ -70,6 +76,9 @@ export async function getSchedule(scheduleId: string) {
 }
 
 export async function getUserSchedules() {
+  const { auth } = await import("@/server/lib/auth");
+  const { scheduleService } = await import("@/server/services/schedule.service");
+
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) return [];
 
@@ -121,6 +130,12 @@ export async function updateClasses(
   scheduleId: string,
   updates: ClassEditInput[]
 ): Promise<{ success: true } | { success: false; error: string }> {
+  const { auth } = await import("@/server/lib/auth");
+  const { db } = await import("@/server/db/client");
+  const { scheduleService, DEFAULT_COLORS } = await import("@/server/services/schedule.service");
+  const { auditLog } = await import("@/server/lib/audit");
+  const { scheduleQstashReminders } = await import("@/server/services/qstash-reminder.service");
+
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) return { success: false, error: "Unauthorized" };
 
